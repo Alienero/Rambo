@@ -10,15 +10,26 @@ import (
 )
 
 type Server struct {
-	addr string
+	addr     string
+	sessions map[uint32]*session
+	seq      uint32
+}
+
+func NewSever() *Server {
+	return &Server{
+		sessions: make(map[uint32]*session),
+		addr:     config.Config.Server.ListenAddr,
+	}
 }
 
 func (s *Server) Run() {
+	glog.Info("Server Load will listen on:", s.addr)
 	l, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		glog.Fatal(err)
 	}
 	defer l.Close()
+	glog.Info("Server listen on:", s.addr)
 	// listen client connection.
 	var tempDelay time.Duration
 	for {
@@ -37,13 +48,16 @@ func (s *Server) Run() {
 				time.Sleep(tempDelay)
 				continue
 			}
-			return e
+			glog.Error(e)
+			return
 		}
 		tempDelay = 0
-		sei, err := newSession(rw)
+		s.seq++
+		sei, err := newSession(rw, s.seq, s)
 		if err != nil {
 			continue
 		}
+		s.sessions[s.seq] = sei
 		go sei.serve()
 	}
 }
