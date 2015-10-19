@@ -12,7 +12,9 @@ type conf struct {
 
 // Meta infomation.
 type etcd struct {
-	EtcdAddr string
+	// mutil etcd nodes.
+	EtcdAddr []string
+	Salt     []byte
 }
 
 type server struct {
