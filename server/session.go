@@ -25,6 +25,7 @@ type session struct {
 	pkg        *mysql.PacketIO
 	collation  mysql.CollationId
 	server     *Server
+	closed     bool // is session closed.
 }
 
 func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {
@@ -75,4 +76,26 @@ func (sei *session) serve() {
 			sei.id, "error", err.Error())
 		return
 	}
+
+	// Read Packet.
+	for {
+		data, err := sei.pkg.ReadPacket()
+		if err != nil {
+			glog.Errorf("Proxy read packet error:%v", err)
+			return
+		}
+		if err = dispatch(data); err != nil {
+			glog.Errorf("Proxy dispatch com error:%v", err)
+			return
+		}
+		if sei.closed {
+			return
+		}
+		sei.pkg.Sequence = 0
+	}
+}
+
+func (sei *session) dispatch(data []byte) error {
+	cmd := data[0]
+	data = data[1:]
 }

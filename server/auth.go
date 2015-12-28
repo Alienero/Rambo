@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/mysql"
 
 	"github.com/golang/glog"
@@ -76,8 +77,8 @@ func (sei *session) readHandshakeResponse() error {
 	pos++
 	auth := data[pos : pos+authLen]
 
-	checkAuth := mysql.CalcPassword(sei.salt, []byte("123"))
-	if !bytes.Equal(auth, checkAuth) {
+	// user and password check.
+	if !meta.Meta.CheckUser(sei.user, auth, sei.salt) {
 		glog.Error("ClientConn", "readHandshakeResponse", "error", 0,
 			"auth", auth,
 			"checkAuth", checkAuth,

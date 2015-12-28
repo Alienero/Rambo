@@ -1,8 +1,10 @@
 package meta
 
 import (
+	"bytes"
+
 	"github.com/Alienero/Rambo/config"
-	"github.com/Alienero/Rambo/util"
+	"github.com/Alienero/Rambo/mysql"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
@@ -14,17 +16,16 @@ type metaDB struct {
 	client *etcd.Client
 }
 
-func (m *metaDB) CheckUser(user, psw string) bool {
-	resp, e := m.client.Get(UserInfo+"/"+user, false, false)
+func (m *metaDB) CheckUser(user, auth string, salt []byte) bool {
+	resp, e := m.client.Get(UserInfo+"/"+user+Password, false, false)
 	if err := etcdErrCheck(e, NotFoud); err != nil {
 		glog.Warningf("Get Etcd User info error:%v", err)
 		return false
 	}
-	realPsw := util.GetPassword(psw, config.Config.Etcd.Salt)
-	return psw == realPsw
+	return bytes.Equal([]byte(auth), mysql.CalcPassword(salt, []byte(resp.Node.Value)))
 }
 
-// scheme include : special fied, shard scheme
+// scheme include : special fied, shard scheme, shard key
 func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, []string, error) {
 	prefix := UserInfo + "/" + user + DB + db + Tables + table
 	scheme, err := m.client.Get(prefix+Scheme, false, false)
@@ -53,7 +54,7 @@ type errorCode int
 func etcdErrCheck(err error, eq ...errorCode) error {
 	if ee, ok := err.(*etcd.EtcdError); ok {
 		for _, code := range eq {
-			if ee.ErrorCode == code {
+			if ee.ErrorCode == int(code) {
 				return nil
 			}
 		}
