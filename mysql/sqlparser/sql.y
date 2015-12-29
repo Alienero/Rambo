@@ -110,8 +110,8 @@ func forceEOF(yylex interface{}) {
 %type <selStmt> select_statement
 %type <statement> insert_statement update_statement delete_statement set_statement
 %type <statement> create_statement alter_statement rename_statement drop_statement
-%type <statement> analyze_statement other_statement
-%type <bytes2> comment_opt comment_list
+%type <statement> analyze_statement explain_statement explainable_stmt other_statement
+%type <bytes2> comment_opt comment_list 
 %type <str> union_op
 %type <str> distinct_opt
 %type <selectExprs> select_expression_list
@@ -170,11 +170,11 @@ any_command:
   }
 
 command:
-  select_statement
-  {
-    $$ = $1
-
-  }
+   explain_statement
+|  select_statement
+   {
+     $$ = $1
+   }
 | insert_statement
 | update_statement
 | delete_statement
@@ -185,6 +185,21 @@ command:
 | drop_statement
 | analyze_statement
 | other_statement
+
+explain_statement:
+  EXPLAIN explainable_stmt
+  {
+    $$ = &Explain{SQLNode: $2}
+  }
+
+explainable_stmt: 
+  select_statement
+  {
+    $$ = $1
+  }
+| insert_statement
+| update_statement
+| delete_statement
 
 select_statement:
   SELECT comment_opt distinct_opt select_expression_list FROM table_references where_expression_opt group_by_opt having_opt order_by_opt limit_opt lock_opt

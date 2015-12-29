@@ -53,20 +53,32 @@ func GenerateParsedQuery(node SQLNode) *ParsedQuery {
 	return buf.ParsedQuery()
 }
 
+// Explain represents a EXPALAIN statement.
+type Explain struct {
+	SQLNode
+}
+
+// Format formats the node.
+func (node *Explain) Format(buf *TrackedBuffer) {
+	buf.WriteString("explain ")
+	node.SQLNode.Format(buf)
+}
+
 // Statement represents a statement.
 type Statement interface {
 	iStatement()
 	SQLNode
 }
 
-func (*Union) iStatement()  {}
-func (*Select) iStatement() {}
-func (*Insert) iStatement() {}
-func (*Update) iStatement() {}
-func (*Delete) iStatement() {}
-func (*Set) iStatement()    {}
-func (*DDL) iStatement()    {}
-func (*Other) iStatement()  {}
+func (*Explain) iStatement() {}
+func (*Union) iStatement()   {}
+func (*Select) iStatement()  {}
+func (*Insert) iStatement()  {}
+func (*Update) iStatement()  {}
+func (*Delete) iStatement()  {}
+func (*Set) iStatement()     {}
+func (*DDL) iStatement()     {}
+func (*Other) iStatement()   {}
 
 // SelectStatement any SELECT statement.
 type SelectStatement interface {
