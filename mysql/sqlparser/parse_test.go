@@ -531,8 +531,8 @@ func TestValid(t *testing.T) {
 		input:  "describe foobar",
 		output: "other",
 	}, {
-		input:  "explain foobar",
-		output: "other",
+		input:  "explain select * from t",
+		output: "explain select * from t",
 	}}
 	for _, tcase := range validSQL {
 		if tcase.output == "" {

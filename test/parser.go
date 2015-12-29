@@ -9,9 +9,7 @@ import (
 
 func main() {
 	sql := `
-	explain Select 
-	name,aa,BB,Asd FROM Users where id ="123" ORDER BY id desc limit 0,10`
-	// sql := `insert into v(id) values (1)`
+	explain`
 	stmt, err := sqlparser.Parse(sql)
 	if err != nil {
 		panic(err)

@@ -311,10 +311,6 @@ other_statement:
   {
     $$ = &Other{}
   }
-| EXPLAIN force_eof
-  {
-    $$ = &Other{}
-  }
 
 comment_opt:
   {

@@ -245,7 +245,7 @@ func (node *DDL) Format(buf *TrackedBuffer) {
 	}
 }
 
-// Other represents a SHOW, DESCRIBE, or EXPLAIN statement.
+// Other represents a SHOW, or DESCRIBE statement.
 // It should be used only as an indicator. It does not contain
 // the full AST for the statement.
 type Other struct{}
