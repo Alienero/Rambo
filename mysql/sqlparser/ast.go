@@ -120,16 +120,16 @@ const (
 // Format formats the node.
 func (node *Select) Format(buf *TrackedBuffer) {
 	buf.Myprintf("select %v%s%v from %v%v%v%v%v%v%s",
-		node.Comments, Distinct(node.Distinct), node.SelectExprs,
+		node.Comments, node.Distinct, node.SelectExprs,
 		node.From, node.Where,
 		node.GroupBy, node.Having, node.OrderBy,
-		node.Limit, LockDirection(node.Lock))
+		node.Limit, node.Lock)
 }
 
 // Nodes renturn this sqlnode's all children node.
 func (node *Select) Nodes() []SQLNode {
 	return []SQLNode{node.Comments, Distinct(node.Distinct), node.SelectExprs, node.From,
-		node.Where, node.GroupBy, node.Having, node.OrderBy, node.Limit, node.Lock}
+		node.Where, node.GroupBy, node.Having, node.OrderBy, node.Limit, Lock(node.Lock)}
 }
 
 // Union represents a UNION statement.
@@ -579,7 +579,7 @@ const (
 
 // Format formats the node.
 func (node *IndexHints) Format(buf *TrackedBuffer) {
-	buf.Myprintf(" %sindex ", Type(node.Type))
+	buf.Myprintf(" %sindex ", node.Type)
 	prefix := "("
 	for _, n := range node.Indexes {
 		buf.Myprintf("%s%v", prefix, n)
@@ -624,7 +624,7 @@ func (node *Where) Format(buf *TrackedBuffer) {
 	if node == nil || node.Expr == nil {
 		return
 	}
-	buf.Myprintf(" %s %v", Type(node.Type), node.Expr)
+	buf.Myprintf(" %s %v", node.Type, node.Expr)
 }
 
 // Nodes renturn this sqlnode's all children node.
@@ -800,7 +800,7 @@ func (node *ComparisonExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *ComparisonExpr) Nodes() []SQLNode {
-	return []SQLNode{node.Left, StrVal(node.Operator), node.Right}
+	return []SQLNode{node.Left, Operator(node.Operator), node.Right}
 }
 
 // RangeCond represents a BETWEEN or a NOT BETWEEN expression.
@@ -818,7 +818,7 @@ const (
 
 // Format formats the node.
 func (node *RangeCond) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%v %s %v and %v", node.Left, StrVal(node.Operator), node.From, node.To)
+	buf.Myprintf("%v %s %v and %v", node.Left, node.Operator, node.From, node.To)
 }
 
 // Nodes renturn this sqlnode's all children node.
@@ -1093,7 +1093,7 @@ func (node *BinaryExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *BinaryExpr) Nodes() []SQLNode {
-	return []SQLNode{node.Left, StrVal(node.Operator), node.Right}
+	return []SQLNode{node.Left, Operator(node.Operator), node.Right}
 }
 
 // UnaryExpr represents a unary value expression.
@@ -1120,7 +1120,7 @@ func (node *UnaryExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *UnaryExpr) Nodes() []SQLNode {
-	return []SQLNode{StrVal([]byte{node.Operator}), node.Expr}
+	return []SQLNode{Operator([]byte{node.Operator}), node.Expr}
 }
 
 // FuncExpr represents a function call.

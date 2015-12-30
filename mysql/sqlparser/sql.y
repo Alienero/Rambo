@@ -204,17 +204,17 @@ explainable_stmt:
 select_statement:
   SELECT comment_opt distinct_opt select_expression_list FROM table_references where_expression_opt group_by_opt having_opt order_by_opt limit_opt lock_opt
   {
-    $$ = &Select{Comments: Comments($2), Distinct: Distinct($3), SelectExprs: $4, From: $6, Where: NewWhere(WhereStr, $7), GroupBy: GroupBy($8), Having: NewWhere(HavingStr, $9), OrderBy: $10, Limit: $11, Lock: Lock($12)}
+    $$ = &Select{Comments: Comments($2), Distinct: $3, SelectExprs: $4, From: $6, Where: NewWhere(WhereStr, $7), GroupBy: GroupBy($8), Having: NewWhere(HavingStr, $9), OrderBy: $10, Limit: $11, Lock: $12}
   }
 | select_statement union_op select_statement %prec UNION
   {
-    $$ = &Union{Type: Type($2), Left: $1, Right: $3}
+    $$ = &Union{Type: $2, Left: $1, Right: $3}
   }
 
 insert_statement:
   INSERT comment_opt ignore_opt INTO dml_table_expression column_list_opt row_list on_dup_opt
   {
-    $$ = &Insert{Comments: Comments($2), Ignore: Ignore($3), Table: $5, Columns: $6, Rows: $7, OnDup: OnDup($8)}
+    $$ = &Insert{Comments: Comments($2), Ignore: $3, Table: $5, Columns: $6, Rows: $7, OnDup: OnDup($8)}
   }
 | INSERT comment_opt ignore_opt INTO dml_table_expression SET update_list on_dup_opt
   {
@@ -224,7 +224,7 @@ insert_statement:
       cols = append(cols, &NonStarExpr{Expr: col.Name})
       vals = append(vals, col.Expr)
     }
-    $$ = &Insert{Comments: Comments($2), Ignore: Ignore($3), Table: $5, Columns: cols, Rows: Values{vals}, OnDup: OnDup($8)}
+    $$ = &Insert{Comments: Comments($2), Ignore: $3, Table: $5, Columns: cols, Rows: Values{vals}, OnDup: OnDup($8)}
   }
 
 update_statement:
@@ -447,19 +447,19 @@ table_factor:
 join_table:
   table_reference inner_join table_factor %prec JOIN
   {
-    $$ = &JoinTableExpr{LeftExpr: $1, Join: Join($2), RightExpr: $3}
+    $$ = &JoinTableExpr{LeftExpr: $1, Join: $2, RightExpr: $3}
   }
 | table_reference inner_join table_factor ON boolean_expression
   {
-    $$ = &JoinTableExpr{LeftExpr: $1, Join: Join($2), RightExpr: $3, On: $5}
+    $$ = &JoinTableExpr{LeftExpr: $1, Join: $2, RightExpr: $3, On: $5}
   }
 | table_reference outer_join table_reference ON boolean_expression
   {
-    $$ = &JoinTableExpr{LeftExpr: $1, Join: Join($2), RightExpr: $3, On: $5}
+    $$ = &JoinTableExpr{LeftExpr: $1, Join: $2, RightExpr: $3, On: $5}
   }
 | table_reference natural_join table_factor
   {
-    $$ = &JoinTableExpr{LeftExpr: $1, Join: Join($2), RightExpr: $3}
+    $$ = &JoinTableExpr{LeftExpr: $1, Join: $2, RightExpr: $3}
   }
 
 as_opt:
@@ -966,7 +966,7 @@ order_list:
 order:
   value_expression asc_desc_opt
   {
-    $$ = &Order{Expr: $1, Direction: Direction($2)}
+    $$ = &Order{Expr: $1, Direction: $2}
   }
 
 asc_desc_opt:

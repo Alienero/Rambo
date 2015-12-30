@@ -970,19 +970,19 @@ yydefault:
 		yyDollar = yyS[yypt-12 : yypt+1]
 		//line sql.y:206
 		{
-			yyVAL.selStmt = &Select{Comments: Comments(yyDollar[2].bytes2), Distinct: Distinct(yyDollar[3].str), SelectExprs: yyDollar[4].selectExprs, From: yyDollar[6].tableExprs, Where: NewWhere(WhereStr, yyDollar[7].boolExpr), GroupBy: GroupBy(yyDollar[8].valExprs), Having: NewWhere(HavingStr, yyDollar[9].boolExpr), OrderBy: yyDollar[10].orderBy, Limit: yyDollar[11].limit, Lock: Lock(yyDollar[12].str)}
+			yyVAL.selStmt = &Select{Comments: Comments(yyDollar[2].bytes2), Distinct: yyDollar[3].str, SelectExprs: yyDollar[4].selectExprs, From: yyDollar[6].tableExprs, Where: NewWhere(WhereStr, yyDollar[7].boolExpr), GroupBy: GroupBy(yyDollar[8].valExprs), Having: NewWhere(HavingStr, yyDollar[9].boolExpr), OrderBy: yyDollar[10].orderBy, Limit: yyDollar[11].limit, Lock: yyDollar[12].str}
 		}
 	case 20:
 		yyDollar = yyS[yypt-3 : yypt+1]
 		//line sql.y:210
 		{
-			yyVAL.selStmt = &Union{Type: Type(yyDollar[2].str), Left: yyDollar[1].selStmt, Right: yyDollar[3].selStmt}
+			yyVAL.selStmt = &Union{Type: yyDollar[2].str, Left: yyDollar[1].selStmt, Right: yyDollar[3].selStmt}
 		}
 	case 21:
 		yyDollar = yyS[yypt-8 : yypt+1]
 		//line sql.y:216
 		{
-			yyVAL.statement = &Insert{Comments: Comments(yyDollar[2].bytes2), Ignore: Ignore(yyDollar[3].str), Table: yyDollar[5].tableName, Columns: yyDollar[6].columns, Rows: yyDollar[7].insRows, OnDup: OnDup(yyDollar[8].updateExprs)}
+			yyVAL.statement = &Insert{Comments: Comments(yyDollar[2].bytes2), Ignore: yyDollar[3].str, Table: yyDollar[5].tableName, Columns: yyDollar[6].columns, Rows: yyDollar[7].insRows, OnDup: OnDup(yyDollar[8].updateExprs)}
 		}
 	case 22:
 		yyDollar = yyS[yypt-8 : yypt+1]
@@ -994,7 +994,7 @@ yydefault:
 				cols = append(cols, &NonStarExpr{Expr: col.Name})
 				vals = append(vals, col.Expr)
 			}
-			yyVAL.statement = &Insert{Comments: Comments(yyDollar[2].bytes2), Ignore: Ignore(yyDollar[3].str), Table: yyDollar[5].tableName, Columns: cols, Rows: Values{vals}, OnDup: OnDup(yyDollar[8].updateExprs)}
+			yyVAL.statement = &Insert{Comments: Comments(yyDollar[2].bytes2), Ignore: yyDollar[3].str, Table: yyDollar[5].tableName, Columns: cols, Rows: Values{vals}, OnDup: OnDup(yyDollar[8].updateExprs)}
 		}
 	case 23:
 		yyDollar = yyS[yypt-8 : yypt+1]
@@ -1256,25 +1256,25 @@ yydefault:
 		yyDollar = yyS[yypt-3 : yypt+1]
 		//line sql.y:449
 		{
-			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: Join(yyDollar[2].str), RightExpr: yyDollar[3].tableExpr}
+			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: yyDollar[2].str, RightExpr: yyDollar[3].tableExpr}
 		}
 	case 68:
 		yyDollar = yyS[yypt-5 : yypt+1]
 		//line sql.y:453
 		{
-			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: Join(yyDollar[2].str), RightExpr: yyDollar[3].tableExpr, On: yyDollar[5].boolExpr}
+			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: yyDollar[2].str, RightExpr: yyDollar[3].tableExpr, On: yyDollar[5].boolExpr}
 		}
 	case 69:
 		yyDollar = yyS[yypt-5 : yypt+1]
 		//line sql.y:457
 		{
-			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: Join(yyDollar[2].str), RightExpr: yyDollar[3].tableExpr, On: yyDollar[5].boolExpr}
+			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: yyDollar[2].str, RightExpr: yyDollar[3].tableExpr, On: yyDollar[5].boolExpr}
 		}
 	case 70:
 		yyDollar = yyS[yypt-3 : yypt+1]
 		//line sql.y:461
 		{
-			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: Join(yyDollar[2].str), RightExpr: yyDollar[3].tableExpr}
+			yyVAL.tableExpr = &JoinTableExpr{LeftExpr: yyDollar[1].tableExpr, Join: yyDollar[2].str, RightExpr: yyDollar[3].tableExpr}
 		}
 	case 71:
 		yyDollar = yyS[yypt-0 : yypt+1]
@@ -1951,7 +1951,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 		//line sql.y:968
 		{
-			yyVAL.order = &Order{Expr: yyDollar[1].valExpr, Direction: Direction(yyDollar[2].str)}
+			yyVAL.order = &Order{Expr: yyDollar[1].valExpr, Direction: yyDollar[2].str}
 		}
 	case 182:
 		yyDollar = yyS[yypt-0 : yypt+1]
