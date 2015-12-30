@@ -958,7 +958,7 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 		//line sql.y:191
 		{
-			yyVAL.statement = &Explain{SQLNode: yyDollar[2].statement}
+			yyVAL.statement = &Explain{SQL: yyDollar[2].statement}
 		}
 	case 15:
 		yyDollar = yyS[yypt-1 : yypt+1]

@@ -56,13 +56,18 @@ func GenerateParsedQuery(node SQLNode) *ParsedQuery {
 
 // Explain represents a EXPALAIN statement.
 type Explain struct {
-	SQLNode
+	SQL SQLNode
 }
 
 // Format formats the node.
 func (node *Explain) Format(buf *TrackedBuffer) {
 	buf.WriteString("explain ")
-	node.SQLNode.Format(buf)
+	node.SQL.Format(buf)
+}
+
+// Nodes renturn this sqlnode's all children node.
+func (node *Explain) Nodes() []SQLNode {
+	return []SQLNode{node.SQL}
 }
 
 // Statement represents a statement.

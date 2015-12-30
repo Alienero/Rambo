@@ -189,7 +189,7 @@ command:
 explain_statement:
   EXPLAIN explainable_stmt
   {
-    $$ = &Explain{SQLNode: $2}
+    $$ = &Explain{SQL: $2}
   }
 
 explainable_stmt: 
