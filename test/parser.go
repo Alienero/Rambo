@@ -33,10 +33,6 @@ func main() {
 		panic(err)
 	}
 	log.Println(string(data))
-}
 
-type d string
-
-func f(i interface{}) interface{} {
-	return i
+	log.Println(s.OrderBy[0].Expr, s.OrderBy[0].Direction)
 }

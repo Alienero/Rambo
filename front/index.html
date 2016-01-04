@@ -4,8 +4,11 @@
   <title>ECharts</title>
 </head>
 <body>
+  <div >
+      <input id="sql" type="text" name="name" value="" onkeydown='keydonw(event)'/>
+  </div>
   <!-- 为ECharts准备一个具备大小（宽高）的Dom -->
-  <div id="main" style="height:400px"></div>
+  <div id="main" style="height:800px"></div>
   <!-- ECharts单文件引入 -->
   <script src="libs/echarts/dist/echarts.js"></script>
   <script type="text/javascript">
@@ -18,171 +21,187 @@
 
 
   var nodes = [];
+  var nodes_index_map=new Array();
+  var index = 0;
   var links = [];
-  var constMaxDepth = 4;
-  var constMaxChildren =3;
-  var constMinChildren = 1;
-  var constMaxRadius = 1000;
-  var constMinRadius = 2;
   var mainDom = document.getElementById('main');
 
+  var callback ;
+  function keydonw(event){
+    if (event.keyCode==13){
+      mainDom.innHTML='';
+      nodes=[];
+      links=[];
+      index=0;
+      nodes_index_map=new Array();
 
-  function rangeRandom(min, max) {
-    return Math.random() * (max - min) + min;
+      callback();
+    }
   }
 
-  function createRandomNode(depth,max,n) {
+  function createNode(depth,max,n,node,maxdepth) {
     var x = mainDom.clientWidth /(max+1) * n;
-    if(depth==4){
-        console.log(x);
-    }
+    var y = (mainDom.clientHeight - 20) * depth / (maxdepth + 1) + 20;
 
-    var y = (mainDom.clientHeight - 20) * depth / (constMaxDepth + 1) + 20;
-    // var y = 100;
-    var v;
-    if (n==1){
-      v="left"
-    }else{
-      v="right"
+    var symbolSize=10;
+    if(depth==1){
+      symbolSize=12;
     }
-    var node = {
-      name : 'NODE_' + nodes.length+"_"+v,
+    var category;
+    if(depth==1){
+      category =2;
+    }else{
+      if (node.IsEnd){
+        category=0
+      }else{
+        category=1
+      }
+    }
+    var tnode = {
+      name : node.Name+",index:"+index,
+      label: node.Name,
       value : 1,
       // Custom properties
-      id : nodes.length,
+      id : node.Id,
       initial : [x, y],
       fixY : true,
       fixX:true,
-      symbolSize :10,
+      symbolSize :symbolSize,
       // draggable:false,
-      category : depth === constMaxDepth ? 0 : 1
+      category : category
     }
-    nodes.push(node);
+    nodes.push(tnode);
+    nodes_index_map[node.Id]=index;
+    index++;
 
-    return node;
-  }
-
-
-  function forceMockThreeData() {
-    var depth = 0;
-
-    var rootNode = createRandomNode(0,1,1);
-    rootNode.name = 'ROOT';
-    rootNode.category = 2;
-    rootNode.symbolSize =15;
-
-    function mock(parentNode, depth) {
-      var nChildren = 2;
-
-      for (var i = 0; i < nChildren; i++) {
-        var childNode = createRandomNode(depth,4,i+1);
-        links.push({
-          source : parentNode.id,
-          target : childNode.id,
-          weight : 1
-        });
-        for (var i = 0; i < nChildren; i++) {
-          var childNode = createRandomNode(depth,4,i+1+2);
-          links.push({
-            source : parentNode.id,
-            target : childNode.id,
-            weight : 1
-          })
-          }
-        if (depth > constMaxDepth) {
-          return;
-        }
-      }
+    if(node.Parent!=0){
+      links.push({
+        source : nodes_index_map[node.Id],
+        target : nodes_index_map[node.Parent],
+        weight : 1
+      });
     }
-
-    mock(rootNode, 1);
   }
-
 
   // 使用
   require(
     [
       'echarts',
-      'echarts/chart/force' // 使用柱状图就加载force模块，按需加载
+      'echarts/chart/force'
     ],
     function (ec) {
-      forceMockThreeData();
-      var myChart = ec.init(mainDom);
-      var option = {
-        title : {
-          text: 'Force',
-          subtext: 'Force-directed tree',
-          x:'right',
-          y:'bottom'
-        },
-        tooltip : {
-          trigger: 'item',
-          formatter: '{a} : {b}'
-        },
-        toolbox: {
-          show : true,
-          feature : {
-            restore : {show: true},
-            saveAsImage : {show: true}
-          }
-        },
-        legend: {
-          x: 'left',
-          data:['叶子节点','非叶子节点', '根节点']
-        },
-        series : [
-          {
-            type:'force',
-            name : "SQL AST Tree",
-            categories : [
-              {
-                name: '叶子节点',
-                itemStyle: {
-                  normal: {
-                    color : '#ff7f50'
-                  }
+      callback=function(){
+        // get ast json.
+        //1.创建XMLHttpRequest组建
+        var xmlHttpRequest = new XMLHttpRequest();
+        //2.设置回调函数
+        xmlHttpRequest.onreadystatechange = function(){
+          if(xmlHttpRequest.readyState == 4 && xmlHttpRequest.status == 200){
+            var b = xmlHttpRequest.responseText;
+            // 反序列化
+            var resp=JSON.parse(b);
+            console.log(b);
+            var resp_nodes = resp.Nodes;
+            console.log(resp_nodes[0].length);
+            var max_depth = resp_nodes.length;
+            console.log(max_depth);
+            for(var i=0;i<max_depth;i++){
+              var depth = i+1;
+              var max = resp_nodes[i].length
+              for(var j=0;j<max;j++){
+                var node = resp_nodes[i][j];
+                var n = j+1;
+                createNode(depth,max,n,node,max_depth)
+              }
+            }
+
+            var myChart = ec.init(mainDom);
+            var option = {
+              title : {
+                text: 'SQL AST',
+                subtext: 'SQL AST',
+                x:'right',
+                y:'bottom'
+              },
+              tooltip : {
+                trigger: 'item',
+                formatter: '{a} : {b}'
+              },
+              toolbox: {
+                show : true,
+                feature : {
+                  restore : {show: true},
+                  saveAsImage : {show: true}
                 }
               },
-              {
-                name: '非叶子节点',
-                itemStyle: {
-                  normal: {
-                    color : '#6f57bc'
-                  }
-                }
+              legend: {
+                x: 'left',
+                data:['叶子节点','非叶子节点', '根节点']
               },
-              {
-                name: '根节点',
-                itemStyle: {
-                  normal: {
-                    color : '#af0000'
-                  }
+              series : [
+                {
+                  type:'force',
+                  name : "value:",
+                  categories : [
+                    {
+                      name: '叶子节点',
+                      itemStyle: {
+                        normal: {
+                          color : '#ff7f50'
+                        }
+                      }
+                    },
+                    {
+                      name: '非叶子节点',
+                      itemStyle: {
+                        normal: {
+                          color : '#6f57bc'
+                        }
+                      }
+                    },
+                    {
+                      name: '根节点',
+                      itemStyle: {
+                        normal: {
+                          color : '#af0000'
+                        }
+                      }
+                    }
+                  ],
+                  itemStyle: {
+                    normal: {
+                      label: {
+                        show: true,
+                        position:"bottom",
+                        textStyle: {
+                          color: '#333'
+                        }
+                      },
+                      nodeStyle : {
+                        brushType : 'both',
+                        strokeColor : 'rgba(255,215,0,0.6)',
+                        lineWidth : 1
+                      }
+                    }
+                  },
+                  gravity:0.1,
+                  roam:true,
+                  nodes : nodes,
+                  links : links
                 }
-              }
-            ],
-            itemStyle: {
-              normal: {
-                label: {
-                  show: false
-                },
-                nodeStyle : {
-                  brushType : 'both',
-                  strokeColor : 'rgba(255,215,0,0.6)',
-                  lineWidth : 1
-                }
-              }
-            },
-            // minRadius : 2,
-            // maxRadius : 10,
-            gravity:0.1,
-            roam:true,
-            nodes : nodes,
-            links : links
+              ]
+            };
+            // 为echarts对象加载数据
+            myChart.setOption(option);
+          }else if(xmlHttpRequest.readyState == 3 && xmlHttpRequest.status == 500){
+            console.log("Error:",xmlHttpRequest.responseText);
+            alert(xmlHttpRequest.responseText);
           }
-        ]
-      };
-      // 为echarts对象加载数据
-      myChart.setOption(option);
+
+        };
+        xmlHttpRequest.open("POST","/ast",true);
+        xmlHttpRequest.send(document.getElementById("sql").value);
+      }
     }
   );
   </script>
