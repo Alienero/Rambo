@@ -133,8 +133,8 @@ func (node *Select) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *Select) Nodes() []SQLNode {
-	return []SQLNode{node.Comments, Distinct(node.Distinct), node.SelectExprs, node.From,
-		node.Where, node.GroupBy, node.Having, node.OrderBy, node.Limit, Lock(node.Lock)}
+	return []SQLNode{node.Comments, Str(node.Distinct), node.SelectExprs, node.From,
+		node.Where, node.GroupBy, node.Having, node.OrderBy, node.Limit, Str(node.Lock)}
 }
 
 // Union represents a UNION statement.
@@ -159,7 +159,7 @@ func (node *Union) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *Union) Nodes() []SQLNode {
-	return []SQLNode{node.Left, Type(node.Type), node.Right}
+	return []SQLNode{node.Left, Str(node.Type), node.Right}
 }
 
 // Insert represents an INSERT statement.
@@ -181,7 +181,7 @@ func (node *Insert) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *Insert) Nodes() []SQLNode {
-	return []SQLNode{node.Comments, Ignore(node.Ignore),
+	return []SQLNode{node.Comments, Str(node.Ignore),
 		node.Table, node.Columns, node.Rows, node.OnDup}
 }
 
@@ -289,11 +289,11 @@ func (node *DDL) Format(buf *TrackedBuffer) {
 func (node *DDL) Nodes() []SQLNode {
 	switch node.Action {
 	case CreateStr:
-		return []SQLNode{Action(node.Action), node.NewName}
+		return []SQLNode{Str(node.Action), node.NewName}
 	case RenameStr:
-		return []SQLNode{Action(node.Action), node.Table, node.NewName}
+		return []SQLNode{Str(node.Action), node.Table, node.NewName}
 	default:
-		return []SQLNode{Action(node.Action), node.Table}
+		return []SQLNode{Str(node.Action), node.Table}
 	}
 }
 
@@ -394,7 +394,7 @@ func (node *NonStarExpr) Nodes() []SQLNode {
 	sns := make([]SQLNode, 0, 1)
 	sns = append(sns, node.Expr)
 	if node.As != "" {
-		sns = append(sns, node.As)
+		sns = append(sns, Str("as"), node.As)
 	}
 	return sns
 }
@@ -562,7 +562,7 @@ func (node *JoinTableExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *JoinTableExpr) Nodes() []SQLNode {
-	sns := []SQLNode{node.LeftExpr, Join(node.Join), node.RightExpr}
+	sns := []SQLNode{node.LeftExpr, Str(node.Join), node.RightExpr}
 	if node.On != nil {
 		sns = append(sns, node.On)
 	}
@@ -596,7 +596,7 @@ func (node *IndexHints) Format(buf *TrackedBuffer) {
 // Nodes renturn this sqlnode's all children node.
 func (node *IndexHints) Nodes() []SQLNode {
 	sns := make([]SQLNode, 0, 1+len(node.Indexes))
-	sns = append(sns, Type(node.Type))
+	sns = append(sns, Str(node.Type))
 	for _, e := range node.Indexes {
 		sns = append(sns, e)
 	}
@@ -637,7 +637,7 @@ func (node *Where) Nodes() []SQLNode {
 	if node == nil || node.Expr == nil {
 		return nil
 	}
-	return []SQLNode{Type(node.Type), node.Expr}
+	return []SQLNode{Str(node.Type), node.Expr}
 }
 
 // Expr represents an expression.
@@ -805,7 +805,7 @@ func (node *ComparisonExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *ComparisonExpr) Nodes() []SQLNode {
-	return []SQLNode{node.Left, Operator(node.Operator), node.Right}
+	return []SQLNode{node.Left, Str(node.Operator), node.Right}
 }
 
 // RangeCond represents a BETWEEN or a NOT BETWEEN expression.
@@ -828,7 +828,7 @@ func (node *RangeCond) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *RangeCond) Nodes() []SQLNode {
-	return []SQLNode{node.Left, Operator(node.Operator), node.From, node.To}
+	return []SQLNode{node.Left, Str(node.Operator), node.From, node.To}
 }
 
 // IsExpr represents an IS ... or an IS NOT ... expression.
@@ -991,10 +991,11 @@ func (node *ColName) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *ColName) Nodes() []SQLNode {
+	sns := make([]SQLNode, 0)
 	if node.Qualifier != "" {
-		return []SQLNode{node.Qualifier}
+		sns = append(sns, Str("Qualifier"), node.Qualifier)
 	}
-	return []SQLNode{node.Name}
+	return append(sns, node.Name)
 }
 
 // ColTuple represents a list of column values.
@@ -1098,7 +1099,7 @@ func (node *BinaryExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *BinaryExpr) Nodes() []SQLNode {
-	return []SQLNode{node.Left, Operator(node.Operator), node.Right}
+	return []SQLNode{node.Left, Str(node.Operator), node.Right}
 }
 
 // UnaryExpr represents a unary value expression.
@@ -1125,7 +1126,7 @@ func (node *UnaryExpr) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *UnaryExpr) Nodes() []SQLNode {
-	return []SQLNode{Operator([]byte{node.Operator}), node.Expr}
+	return []SQLNode{Str([]byte{node.Operator}), node.Expr}
 }
 
 // FuncExpr represents a function call.
@@ -1288,7 +1289,7 @@ func (node *Order) Format(buf *TrackedBuffer) {
 
 // Nodes renturn this sqlnode's all children node.
 func (node *Order) Nodes() []SQLNode {
-	return []SQLNode{node.Expr, Direction(node.Direction)}
+	return []SQLNode{node.Expr, Str(node.Direction)}
 }
 
 // Limit represents a LIMIT clause.
@@ -1470,104 +1471,16 @@ func (node SQLName) Nodes() []SQLNode {
 	return nil
 }
 
-// Tokens.
+// Tokens. Just for ast display.
 
-// Operator is an operator string.
-type Operator string
+type Str string
 
 // Format formats the node.
-func (node Operator) Format(buf *TrackedBuffer) {
+func (node Str) Format(buf *TrackedBuffer) {
 	buf.Myprintf("%s", string(node))
 }
 
 // Nodes renturn this sqlnode's all children node.
-func (node Operator) Nodes() []SQLNode {
-	return nil
-}
-
-// Distinct is a Distinct string.
-type Distinct string
-
-// Format formats the node.
-func (node Distinct) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Distinct) Nodes() []SQLNode {
-	return nil
-}
-
-type Lock string
-
-// Format formats the node.
-func (node Lock) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Lock) Nodes() []SQLNode {
-	return nil
-}
-
-type Direction string
-
-// Format formats the node.
-func (node Direction) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Direction) Nodes() []SQLNode {
-	return nil
-}
-
-type Type string
-
-// Format formats the node.
-func (node Type) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Type) Nodes() []SQLNode {
-	return nil
-}
-
-// Just for insert ignore token
-type Ignore string
-
-// Format formats the node.
-func (node Ignore) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Ignore) Nodes() []SQLNode {
-	return nil
-}
-
-type Action string
-
-// Format formats the node.
-func (node Action) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Action) Nodes() []SQLNode {
-	return nil
-}
-
-// Jush for join table.
-type Join string
-
-// Format formats the node.
-func (node Join) Format(buf *TrackedBuffer) {
-	buf.Myprintf("%s", string(node))
-}
-
-// Nodes renturn this sqlnode's all children node.
-func (node Join) Nodes() []SQLNode {
+func (node Str) Nodes() []SQLNode {
 	return nil
 }
