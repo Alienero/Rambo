@@ -16,16 +16,29 @@ type metaDB struct {
 	client *etcd.Client
 }
 
-func (m *metaDB) CheckUser(user, auth string, salt []byte) bool {
-	resp, e := m.client.Get(UserInfo+"/"+user+Password, false, false)
-	if err := etcdErrCheck(e, NotFoud); err != nil {
+func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
+	resp, err := m.client.Get(UserInfo+"/"+user+Password, false, false)
+	if err != nil {
 		glog.Warningf("Get Etcd User info error:%v", err)
 		return false
 	}
-	return bytes.Equal([]byte(auth), mysql.CalcPassword(salt, []byte(resp.Node.Value)))
+	if isExist := bytes.Equal(auth, mysql.CalcPassword(salt, []byte(resp.Node.Value))); !isExist {
+		glog.V(2).Infof("Password(!= %v) is nq", resp.Node.Value)
+		return false
+	}
+	if db != "" {
+		_, err = m.client.Get(UserInfo+"/"+user+DB+db, false, false)
+		if err != nil {
+			glog.Infof("Can not get Etcd user db error:%v", err)
+			return false
+		}
+
+	}
+	return true
 }
 
 // scheme include : special fied, shard scheme, shard key
+// TODO: we should cache the information.
 func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, []string, error) {
 	prefix := UserInfo + "/" + user + DB + db + Tables + table
 	scheme, err := m.client.Get(prefix+Scheme, false, false)
@@ -47,17 +60,4 @@ func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, 
 
 func InitMetaDB() {
 	Meta.client = etcd.NewClient(config.Config.Etcd.EtcdAddr)
-}
-
-type errorCode int
-
-func etcdErrCheck(err error, eq ...errorCode) error {
-	if ee, ok := err.(*etcd.EtcdError); ok {
-		for _, code := range eq {
-			if ee.ErrorCode == int(code) {
-				return nil
-			}
-		}
-	}
-	return err
 }

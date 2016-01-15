@@ -5,19 +5,21 @@ import (
 	"time"
 
 	"github.com/Alienero/Rambo/config"
+	"github.com/Alienero/Rambo/util/safemap"
 
 	"github.com/golang/glog"
 )
 
 type Server struct {
-	addr     string
-	sessions map[uint32]*session
-	seq      uint32
+	addr string
+	seq  uint32
+	// sessions map[uint32]*session
+	sessions *safemap.Map
 }
 
 func NewSever() *Server {
 	return &Server{
-		sessions: make(map[uint32]*session),
+		sessions: safemap.NewMap(),
 		addr:     config.Config.Server.ListenAddr,
 	}
 }
@@ -57,7 +59,7 @@ func (s *Server) Run() {
 		if err != nil {
 			continue
 		}
-		s.sessions[s.seq] = sei
+		s.sessions.Set(s.seq, sei)
 		go sei.serve()
 	}
 }

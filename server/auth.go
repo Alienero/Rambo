@@ -77,15 +77,6 @@ func (sei *session) readHandshakeResponse() error {
 	pos++
 	auth := data[pos : pos+authLen]
 
-	// user and password check.
-	if !meta.Meta.CheckUser(sei.user, auth, sei.salt) {
-		glog.Error("ClientConn", "readHandshakeResponse", "error", 0,
-			"auth", auth,
-			"checkAuth", checkAuth,
-			"passworld", "123")
-		return mysql.NewDefaultError(mysql.ER_ACCESS_DENIED_ERROR)
-	}
-
 	pos += authLen
 
 	if sei.capability&mysql.CLIENT_CONNECT_WITH_DB > 0 {
@@ -96,6 +87,16 @@ func (sei *session) readHandshakeResponse() error {
 		sei.db = string(data[pos : pos+bytes.IndexByte(data[pos:], 0)])
 		pos += len(sei.db) + 1
 		glog.Info("DB is :", sei.db)
+	}
+
+	// user and password check.
+	if !meta.Meta.CheckUser(sei.user, auth, sei.salt, sei.db) {
+		glog.Infof("User(%v) password or user name error", sei.user)
+		return mysql.NewDefaultError(mysql.ER_ACCESS_DENIED_ERROR)
+	}
+
+	// user db.
+	if sei.db != "" {
 		// if err := c.useDB(db); err != nil {
 		// 	return err
 		// }

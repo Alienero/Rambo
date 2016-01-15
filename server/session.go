@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net"
 	"runtime"
 
@@ -25,7 +26,8 @@ type session struct {
 	pkg        *mysql.PacketIO
 	collation  mysql.CollationId
 	server     *Server
-	closed     bool // is session closed.
+	closed     bool   // is session closed.
+	password   string // backend psw
 }
 
 func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {
@@ -42,6 +44,14 @@ func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {
 	return sei, nil
 }
 
+func (sei *session) Close() error {
+	if sei.closed {
+		return nil
+	}
+	sei.closed = true
+	return sei.rw.Close()
+}
+
 func (sei *session) serve() {
 	defer func() {
 		if err := recover(); err != nil {
@@ -50,8 +60,8 @@ func (sei *session) serve() {
 			buf = buf[:runtime.Stack(buf, false)]
 			glog.Error("serve panic %v: %v\n%s", sei.rw.RemoteAddr().String(), err, buf)
 		}
-		delete(sei.server.sessions, sei.id)
-		sei.rw.Close()
+		sei.server.sessions.Delete(sei.id)
+		sei.Close()
 	}()
 	// handshake.
 	if err := sei.writeInitialHandshake(); err != nil {
@@ -84,7 +94,7 @@ func (sei *session) serve() {
 			glog.Errorf("Proxy read packet error:%v", err)
 			return
 		}
-		if err = dispatch(data); err != nil {
+		if err = sei.dispatch(data); err != nil {
 			glog.Errorf("Proxy dispatch com error:%v", err)
 			return
 		}
@@ -98,4 +108,23 @@ func (sei *session) serve() {
 func (sei *session) dispatch(data []byte) error {
 	cmd := data[0]
 	data = data[1:]
+
+	switch cmd {
+	case mysql.COM_QUIT:
+	case mysql.COM_QUERY:
+	case mysql.COM_PING:
+	case mysql.COM_INIT_DB:
+	case mysql.COM_FIELD_LIST:
+	case mysql.COM_STMT_PREPARE:
+	case mysql.COM_STMT_EXECUTE:
+	case mysql.COM_STMT_CLOSE:
+	case mysql.COM_STMT_SEND_LONG_DATA:
+	case mysql.COM_STMT_RESET:
+	case mysql.COM_SET_OPTION:
+	default:
+		msg := fmt.Sprintf("command %d not supported", cmd)
+		glog.Errorf("session(%v) dispatch %s", sei.id, msg)
+		return mysql.NewError(mysql.ER_UNKNOWN_ERROR, msg)
+	}
+	return nil
 }
