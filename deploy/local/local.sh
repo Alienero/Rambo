@@ -1,7 +1,7 @@
 service_name='mysql_backend'
 num=0
 force=false
-USAGE='Usage: $0 {init {num}|start|stop|remove [-f]|ports {num}}'
+USAGE='Usage: {init {num}|start|stop|remove [-f]|ports {num}}'
 
 init_service() {
 	docker-compose up -d
@@ -66,7 +66,7 @@ case $1 in
 		fi
 		ports
 		;;
-	*  ) 
+	*) 
 		echo $USAGE
         	exit 1
         ;;
