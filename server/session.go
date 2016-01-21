@@ -87,6 +87,8 @@ func (sei *session) serve() {
 		return
 	}
 
+	sei.pkg.Sequence = 0
+
 	// Read Packet.
 	for {
 		data, err := sei.pkg.ReadPacket()
@@ -112,6 +114,10 @@ func (sei *session) dispatch(data []byte) error {
 	switch cmd {
 	case mysql.COM_QUIT:
 	case mysql.COM_QUERY:
+		// TODO: test stmt,should rm.
+		fmt.Println(cmd)
+		fmt.Println(string(data))
+		sei.writeOK(nil)
 	case mysql.COM_PING:
 	case mysql.COM_INIT_DB:
 	case mysql.COM_FIELD_LIST:

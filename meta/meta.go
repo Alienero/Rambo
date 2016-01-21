@@ -61,3 +61,16 @@ func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, 
 func InitMetaDB() {
 	Meta.client = etcd.NewClient(config.Config.Etcd.EtcdAddr)
 }
+
+type Scheme struct {
+	ScaleType string     `json:"scale-type"` // default is `hash`
+	Tables    []string   `json:"tables"`
+	Backends  []*Backend `json:"backends"`
+}
+
+type Backend struct {
+	Host     string `json:"host"`
+	UserName string `json:"user-name"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+}

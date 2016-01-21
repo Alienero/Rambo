@@ -4,7 +4,7 @@ const (
 	MinProtocolVersion byte   = 10
 	MaxPayloadLen      int    = 1<<24 - 1
 	TimeFormat         string = "2006-01-02 15:04:05"
-	ServerVersion      string = "5.6.20-rambo-0.0.1"
+	ServerVersion      string = "5.7.9-rambo-0.0.1"
 )
 
 // Response packet head.
