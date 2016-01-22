@@ -1,4 +1,4 @@
-package main
+package test
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 	"github.com/Alienero/Rambo/mysql/sqlparser"
 )
 
-func main() {
+func AST_HTTP() {
 	http.HandleFunc("/ast", func(w http.ResponseWriter, r *http.Request) {
 		// get sql
 		sql, err := ioutil.ReadAll(r.Body)

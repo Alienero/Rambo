@@ -1,7 +1,7 @@
 package admin
 
 import (
-	"github.com/Alienero/Rambo/meta"
+// "github.com/Alienero/Rambo/meta"
 )
 
 type Admin struct {
