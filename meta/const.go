@@ -1,14 +1,23 @@
 package meta
 
 const (
-	UserInfo   = "/rambo/user_info"
-	Scheme     = "/scheme"
-	Name       = "/name"
-	Password   = "/password"
-	DB         = "/db"
-	Tables     = "/tables"
-	ChildTable = "/child_table"
+	Perfix = "/rambo"
 
+	// users' config.
+	UserInfo      = Perfix + "/user_info"
+	Scheme        = "/scheme"
+	Password      = "/password"
+	DB            = "/db"
+	Tables        = "/tables" // DB's sub dir.
+	ChildBackends = "/child_backends"
+
+	// Mysql backends' config.
+	// MysqlInfo is a dir.
+	// each backend node's config record in a name which named
+	// by the backend's name.
+	MysqlInfo = Perfix + "/mysql_info"
+
+	// partition type.
 	Hash  = "hash"
 	Range = "range"
 )

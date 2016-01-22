@@ -39,36 +39,48 @@ func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) boo
 
 // scheme include : special fied, shard scheme, shard key
 // TODO: we should cache the information.
-func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, []string, error) {
-	prefix := UserInfo + "/" + user + DB + db + Tables + table
-	scheme, err := m.client.Get(prefix+Scheme, false, false)
-	if err != nil {
-		glog.Warningf("Get Etcd User table scheme info error:%v", err)
-		return "", nil, err
-	}
-	tables, err := m.client.Get(prefix+ChildTable, true, false)
-	if err != nil {
-		glog.Warningf("Get Etcd User table's map info error:%v", err)
-		return "", nil, err
-	}
-	ts := make([]string, 0, len(tables.Node.Nodes))
-	for _, node := range tables.Node.Nodes {
-		ts = append(ts, node.Value)
-	}
-	return scheme.Node.Value, ts, nil
-}
+// func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, []string, error) {
+// 	prefix := UserInfo + "/" + user + DB + db + Tables + table
+// 	scheme, err := m.client.Get(prefix+Scheme, false, false)
+// 	if err != nil {
+// 		glog.Warningf("Get Etcd User table scheme info error:%v", err)
+// 		return "", nil, err
+// 	}
+// 	tables, err := m.client.Get(prefix+ChildTable, true, false)
+// 	if err != nil {
+// 		glog.Warningf("Get Etcd User table's map info error:%v", err)
+// 		return "", nil, err
+// 	}
+// 	ts := make([]string, 0, len(tables.Node.Nodes))
+// 	for _, node := range tables.Node.Nodes {
+// 		ts = append(ts, node.Value)
+// 	}
+// 	return scheme.Node.Value, ts, nil
+// }
 
 func InitMetaDB() {
 	Meta.client = etcd.NewClient(config.Config.Etcd.EtcdAddr)
 }
 
-type Scheme struct {
-	ScaleType string     `json:"scale-type"` // default is `hash`
-	Tables    []string   `json:"tables"`
-	Backends  []*Backend `json:"backends"`
+type DBInfo struct {
+	Scheme   string     `json:"scheme"` // default is `hash`
+	Tables   []*Table   `json:"tables"`
+	Backends []*Backend `json:"backends"`
+}
+
+type Table struct {
+	Name         string `json:"name"`
+	PartitionKey string `json:"partition-key"`
 }
 
 type Backend struct {
+	Host     string `json:"host"`
+	UserName string `json:"user-name"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+}
+
+type MysqlNode struct {
 	Host     string `json:"host"`
 	UserName string `json:"user-name"`
 	Password string `json:"password"`
