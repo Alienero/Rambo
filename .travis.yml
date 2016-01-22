@@ -5,5 +5,9 @@ go:
   - 1.5
   - tip
 
+matrix:
+  allow_failures:
+    - go: tip
+
 script:
   - go test -timeout 3m --cover --race -cpu 1,2,4 ./...
