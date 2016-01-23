@@ -11,7 +11,7 @@ init_service() {
 	# sleep 15
 	# write confif to etcd.
 	for (( i = 1; i <= $num; i++ )); do
-		host=$(docker-compose port --index=$i $service_name 3306)
+		host=$(docker-machine ip default)$(docker-compose port --index=$i $service_name 3306 | grep -o ":\d\+$")
 		go run local.go -user=root -password=123456 -name=db_$i -host=$host -etcd_host=$etcd
 	done
 }
