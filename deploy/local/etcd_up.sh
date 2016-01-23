@@ -1,6 +1,6 @@
 HostIP=$(docker-machine ip default)
 docker run -d -p 4001:4001 -p 2380:2380 -p 2379:2379 \
- --name etcd quay.io/coreos/etcd \
+ --name etcd quay.io/coreos/etcd:v2.2.4 \
  -name etcd0 \
  -advertise-client-urls http://$HostIP:2379,http://$HostIP:4001 \
  -listen-client-urls http://0.0.0.0:2379,http://0.0.0.0:4001 \
