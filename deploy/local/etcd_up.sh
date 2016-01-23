@@ -1,4 +1,4 @@
-HostIP="192.168.99.100"
+HostIP=$(docker-machine ip default)
 docker run -d -p 4001:4001 -p 2380:2380 -p 2379:2379 \
  --name etcd quay.io/coreos/etcd \
  -name etcd0 \
