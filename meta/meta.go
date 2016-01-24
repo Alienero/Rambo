@@ -23,13 +23,13 @@ func (m *metaDB) AddUser(user, password string) error {
 }
 
 func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
-	resp, err := m.client.Get(UserInfo+"/"+user+Password, false, false)
+	password, err := m.getPassword(user)
 	if err != nil {
-		glog.Warningf("Get Etcd User info error:%v", err)
 		return false
 	}
-	if isExist := bytes.Equal(auth, mysql.CalcPassword(salt, []byte(resp.Node.Value))); !isExist {
-		glog.V(2).Infof("Password(!= %v) is nq", resp.Node.Value)
+
+	if isExist := bytes.Equal(auth, mysql.CalcPassword(salt, []byte(password))); !isExist {
+		glog.V(2).Infof("Password(!= %v) is nq", password)
 		return false
 	}
 	if db != "" {
@@ -41,6 +41,23 @@ func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) boo
 
 	}
 	return true
+}
+
+func (m *metaDB) CheckUserDirect(user, password string) bool {
+	p, err := m.getPassword(user)
+	if err != nil {
+		return false
+	}
+	return password == p
+}
+
+func (m *metaDB) getPassword(user string) (string, error) {
+	resp, err := m.client.Get(UserInfo+"/"+user+Password, false, false)
+	if err != nil {
+		glog.Warningf("Get Etcd User password error:%v", err)
+		return "", err
+	}
+	return resp.Node.Value, nil
 }
 
 // scheme include : special fied, shard scheme, shard key
