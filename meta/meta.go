@@ -2,6 +2,7 @@ package meta
 
 import (
 	"bytes"
+	"path"
 
 	"github.com/Alienero/Rambo/config"
 	"github.com/Alienero/Rambo/mysql"
@@ -14,6 +15,11 @@ var Meta metaDB
 
 type metaDB struct {
 	client *etcd.Client
+}
+
+func (m *metaDB) AddUser(user, password string) error {
+	_, err := m.client.Create(path.Join(UserInfo, user, Password), password, 0)
+	return err
 }
 
 func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
