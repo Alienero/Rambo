@@ -15,5 +15,6 @@ func main() {
 	// default mysql port.
 	config.Config.Server.ListenAddr = "localhost:3306"
 	s := server.NewSever()
+	// listenning
 	s.Run()
 }
