@@ -3,13 +3,17 @@ package meta
 const (
 	Perfix = "/rambo"
 
+	// all database.
+	Databases = Perfix + "/databases"
+
 	// users' config.
-	UserInfo      = Perfix + "/user_info"
-	Scheme        = "/scheme"
-	Password      = "/password"
-	DB            = "/db"
-	Tables        = "/tables" // DB's sub dir.
-	ChildBackends = "/child_backends"
+	UserInfo = Perfix + "/user_info"
+	Scheme   = "/scheme"
+	Password = "/password"
+	DB       = "/db"
+	Config   = "/config"   // DB's sub dir.
+	Tables   = "/tables"   // DB's sub dir.
+	Backends = "/Backends" // Tables's sud dir.
 
 	// Mysql backends' config.
 	// MysqlInfo is a dir.
