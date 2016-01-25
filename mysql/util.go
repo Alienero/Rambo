@@ -2,6 +2,9 @@ package mysql
 
 import (
 	"crypto/sha1"
+	"encoding/binary"
+	"fmt"
+	"io"
 	"math/rand"
 	"time"
 )
@@ -97,4 +100,152 @@ func PutLengthEncodedInt(n uint64) []byte {
 			byte(n >> 32), byte(n >> 40), byte(n >> 48), byte(n >> 56)}
 	}
 	return nil
+}
+
+func LengthEnodedString(b []byte) ([]byte, bool, int, error) {
+	// Get length
+	num, isNull, n := LengthEncodedInt(b)
+	if num < 1 {
+		return nil, isNull, n, nil
+	}
+
+	n += int(num)
+
+	// Check data length
+	if len(b) >= n {
+		return b[n-int(num) : n], false, n, nil
+	}
+	return nil, false, n, io.EOF
+}
+
+func SkipLengthEnodedString(b []byte) (int, error) {
+	// Get length
+	num, _, n := LengthEncodedInt(b)
+	if num < 1 {
+		return n, nil
+	}
+
+	n += int(num)
+
+	// Check data length
+	if len(b) >= n {
+		return n, nil
+	}
+	return n, io.EOF
+}
+
+func PutLengthEncodedString(b []byte) []byte {
+	data := make([]byte, 0, len(b)+9)
+	data = append(data, PutLengthEncodedInt(uint64(len(b)))...)
+	data = append(data, b...)
+	return data
+}
+
+func Uint16ToBytes(n uint16) []byte {
+	return []byte{
+		byte(n),
+		byte(n >> 8),
+	}
+}
+
+func Uint32ToBytes(n uint32) []byte {
+	return []byte{
+		byte(n),
+		byte(n >> 8),
+		byte(n >> 16),
+		byte(n >> 24),
+	}
+}
+
+func Uint64ToBytes(n uint64) []byte {
+	return []byte{
+		byte(n),
+		byte(n >> 8),
+		byte(n >> 16),
+		byte(n >> 24),
+		byte(n >> 32),
+		byte(n >> 40),
+		byte(n >> 48),
+		byte(n >> 56),
+	}
+}
+
+func FormatBinaryDate(n int, data []byte) ([]byte, error) {
+	switch n {
+	case 0:
+		return []byte("0000-00-00"), nil
+	case 4:
+		return []byte(fmt.Sprintf("%04d-%02d-%02d",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3])), nil
+	default:
+		return nil, fmt.Errorf("invalid date packet length %d", n)
+	}
+}
+
+func FormatBinaryDateTime(n int, data []byte) ([]byte, error) {
+	switch n {
+	case 0:
+		return []byte("0000-00-00 00:00:00"), nil
+	case 4:
+		return []byte(fmt.Sprintf("%04d-%02d-%02d 00:00:00",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3])), nil
+	case 7:
+		return []byte(fmt.Sprintf(
+			"%04d-%02d-%02d %02d:%02d:%02d",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3],
+			data[4],
+			data[5],
+			data[6])), nil
+	case 11:
+		return []byte(fmt.Sprintf(
+			"%04d-%02d-%02d %02d:%02d:%02d.%06d",
+			binary.LittleEndian.Uint16(data[:2]),
+			data[2],
+			data[3],
+			data[4],
+			data[5],
+			data[6],
+			binary.LittleEndian.Uint32(data[7:11]))), nil
+	default:
+		return nil, fmt.Errorf("invalid datetime packet length %d", n)
+	}
+}
+
+func FormatBinaryTime(n int, data []byte) ([]byte, error) {
+	if n == 0 {
+		return []byte("0000-00-00"), nil
+	}
+
+	var sign byte
+	if data[0] == 1 {
+		sign = byte('-')
+	}
+
+	switch n {
+	case 8:
+		return []byte(fmt.Sprintf(
+			"%c%02d:%02d:%02d",
+			sign,
+			uint16(data[1])*24+uint16(data[5]),
+			data[6],
+			data[7],
+		)), nil
+	case 12:
+		return []byte(fmt.Sprintf(
+			"%c%02d:%02d:%02d.%06d",
+			sign,
+			uint16(data[1])*24+uint16(data[5]),
+			data[6],
+			data[7],
+			binary.LittleEndian.Uint32(data[8:12]),
+		)), nil
+	default:
+		return nil, fmt.Errorf("invalid time packet length %d", n)
+	}
 }
