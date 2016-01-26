@@ -11,12 +11,7 @@ type Admin struct {
 
 // AddUser add a database user
 func (Admin) AddUser(user, password string) error {
-	if err := meta.Meta.AddUser(user, password); err != nil {
-		return err
-	}
-	// TODO: create user in the data base
-
-	return nil
+	return meta.Meta.AddUser(user, password)
 }
 
 // AddDatabase a database for user, db is the database name,
