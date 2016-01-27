@@ -11,6 +11,7 @@ import (
 	"github.com/golang/glog"
 )
 
+// Meta is metaDB's global public instance.
 var Meta metaDB
 
 type metaDB struct {
@@ -20,6 +21,24 @@ type metaDB struct {
 func (m *metaDB) AddUser(user, password string) error {
 	_, err := m.client.Create(path.Join(UserInfo, user, Password), password, 0)
 	return err
+}
+
+func (m *metaDB) AddBDatabase(db *Database) error {
+	return nil
+}
+
+func (m *metaDB) IsDBExist(db string) (bool, error) {
+	_, e := m.client.Get(path.Join(Databases, db), false, false)
+	if e != nil {
+		if err, ok := e.(*etcd.EtcdError); ok {
+			if err.ErrorCode == NotFoud {
+				return false, nil
+			}
+			return false, err
+		}
+		return false, e
+	}
+	return true, nil
 }
 
 func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
@@ -81,6 +100,7 @@ func (m *metaDB) getPassword(user string) (string, error) {
 // 	return scheme.Node.Value, ts, nil
 // }
 
+// InitMetaDB will Init DB.
 func InitMetaDB() {
 	Meta.client = etcd.NewClient(config.Config.Etcd.EtcdAddr)
 }
@@ -103,9 +123,16 @@ type Backend struct {
 	Name     string `json:"name"`
 }
 
+// MysqlNode is one mysql server.
 type MysqlNode struct {
 	Host     string `json:"host"`
 	UserName string `json:"user-name"`
 	Password string `json:"password"`
 	Name     string `json:"name"`
+}
+
+// Database is global database config.
+type Database struct {
+	Name     string     `json:"name"`
+	Backends []*Backend `json:"backends"`
 }
