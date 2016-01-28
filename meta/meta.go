@@ -113,9 +113,15 @@ type DBInfo struct {
 
 // Table is mysql table meta info.
 type Table struct {
-	Name         string   `json:"name"`
-	PartitionKey string   `json:"partition-key"`
-	AutoKeys     []string `json:"auto-keys"`
+	Name         string `json:"name"`
+	PartitionKey Key    `json:"partition-key"`
+	AutoKeys     []Key  `json:"auto-keys"`
+}
+
+type Key struct {
+	Name   string `json:"name"`
+	Type   string `json:"type"`
+	Length int    `json:"length"`
 }
 
 type Backend struct {
