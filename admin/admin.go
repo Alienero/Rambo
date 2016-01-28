@@ -36,6 +36,7 @@ func (m *Admin) AddDatabase(db, user string, n int) error {
 	}
 	// create database.
 	// get backends.
+	return nil
 }
 
 // AddTable add a table of a database.
