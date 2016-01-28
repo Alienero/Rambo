@@ -106,14 +106,16 @@ func InitMetaDB() {
 }
 
 type DBInfo struct {
-	Scheme string   `json:"scheme"` // default is `hash`
-	Tables []*Table `json:"tables"`
+	Scheme   string     `json:"scheme"` // default is `hash`
+	Tables   []*Table   `json:"tables"`
+	Backends []*Backend `json:"backends"`
 }
 
+// Table is mysql table meta info.
 type Table struct {
-	Name         string     `json:"name"`
-	PartitionKey string     `json:"partition-key"`
-	Backends     []*Backend `json:"backends"`
+	Name         string   `json:"name"`
+	PartitionKey string   `json:"partition-key"`
+	AutoKeys     []string `json:"auto-keys"`
 }
 
 type Backend struct {
