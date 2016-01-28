@@ -34,6 +34,7 @@ func (m *Admin) AddDatabase(db, user string, n int) error {
 	if isExist {
 		return errDBExisted
 	}
+	// TODO:
 	// create database.
 	// get backends.
 	return nil
