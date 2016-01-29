@@ -1480,3 +1480,23 @@ func (node Str) Format(buf *TrackedBuffer) {
 func (node Str) Nodes() []SQLNode {
 	return nil
 }
+
+// DDLS
+
+// CreateTable is a create table ddl
+type CreateTable struct {
+	IfNotExists bool
+	Table       *TableName
+	Cols        []*ColumnDef
+	Constraints []*Constraint
+	Options     []*TableOption
+}
+
+type ColumnDef struct {
+}
+
+type Constraint struct {
+}
+
+type TableOption struct {
+}
