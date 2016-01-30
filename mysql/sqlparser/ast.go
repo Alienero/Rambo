@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	// Just for ddl.
+	"github.com/pingcap/tidb/ast"
+	"github.com/pingcap/tidb/parser"
 )
 
 // Instructions for creating new types: If a type
@@ -27,6 +31,12 @@ func Parse(sql string) (Statement, error) {
 		return nil, errors.New(tokenizer.LastError)
 	}
 	return tokenizer.ParseTree, nil
+}
+
+// ParseDDL only use to parse ddl sql, no longer use.
+// sqlparser will native support DDL.
+func ParseDDL(sql string) (ast.StmtNode, error) {
+	return parser.ParseOneStmt(sql, "", "")
 }
 
 // SQLNode defines the interface for all nodes
@@ -1481,7 +1491,28 @@ func (node Str) Nodes() []SQLNode {
 	return nil
 }
 
-// DDLS
+// TODO: DDLs
+
+// ColumnOptionType is the type for ColumnOption.
+type ColumnOptionType int
+
+// ColumnOption types.
+const (
+	ColumnOptionNoOption ColumnOptionType = iota
+	ColumnOptionPrimaryKey
+	ColumnOptionNotNull
+	ColumnOptionAutoIncrement
+	ColumnOptionDefaultValue
+	ColumnOptionUniq
+	ColumnOptionIndex
+	ColumnOptionUniqIndex
+	ColumnOptionKey
+	ColumnOptionUniqKey
+	ColumnOptionNull
+	ColumnOptionOnUpdate // For Timestamp and Datetime only.
+	ColumnOptionFulltext
+	ColumnOptionComment
+)
 
 // CreateTable is a create table ddl
 type CreateTable struct {
@@ -1492,7 +1523,21 @@ type CreateTable struct {
 	Options     []*TableOption
 }
 
+// ColumnDef is used for parsing column definition from SQL.
 type ColumnDef struct {
+	Name    *ColName
+	Type    *FieldType
+	Options []*ColumnOption
+}
+
+// ColumnOption is used for parsing column constraint info from SQL.
+type ColumnOption struct {
+	Tp ColumnOptionType
+	// The value For Default or On Update.
+	Expr Expr
+}
+
+type FieldType struct {
 }
 
 type Constraint struct {
@@ -1500,3 +1545,33 @@ type Constraint struct {
 
 type TableOption struct {
 }
+
+// TableOptionType is the type for TableOption
+type TableOptionType int
+
+// TableOption types.
+const (
+	TableOptionNone TableOptionType = iota
+	TableOptionEngine
+	TableOptionCharset
+	TableOptionCollate
+	TableOptionAutoIncrement
+	TableOptionComment
+	TableOptionAvgRowLength
+	TableOptionCheckSum
+	TableOptionCompression
+	TableOptionConnection
+	TableOptionPassword
+	TableOptionKeyBlockSize
+	TableOptionMaxRows
+	TableOptionMinRows
+	TableOptionDelayKeyWrite
+) // DatabaseOptionType is the type for database options.
+type DatabaseOptionType int
+
+// Database option types.
+const (
+	DatabaseOptionNone DatabaseOptionType = iota
+	DatabaseOptionCharset
+	DatabaseOptionCollate
+)
