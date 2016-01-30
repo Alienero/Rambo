@@ -4,16 +4,17 @@ const (
 	Perfix = "/rambo"
 
 	// all database.
-	Databases = Perfix + "/databases"
+	Databases = Perfix + "/databases" // style: [user name]_[database name]
 
 	// users' config.
+
 	UserInfo = Perfix + "/user_info"
+	Backends = "/Backends" // UserInfo's sud dir.
 	Scheme   = "/scheme"
 	Password = "/password"
 	DB       = "/db"
-	Config   = "/config"   // DB's sub dir.
-	Tables   = "/tables"   // DB's sub dir.
-	Backends = "/Backends" // Tables's sud dir.
+	Config   = "/config" // DB's sub dir.
+	Tables   = "/tables" // DB's sub dir.
 
 	// Mysql backends' config.
 	// MysqlInfo is a dir.
