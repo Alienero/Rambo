@@ -27,18 +27,9 @@ func (m *metaDB) AddBDatabase(db *Database) error {
 	return nil
 }
 
-func (m *metaDB) IsDBExist(db string) (bool, error) {
-	_, e := m.client.Get(path.Join(Databases, db), false, false)
-	if e != nil {
-		if err, ok := e.(*etcd.EtcdError); ok {
-			if err.ErrorCode == NotFoud {
-				return false, nil
-			}
-			return false, err
-		}
-		return false, e
-	}
-	return true, nil
+func (m *metaDB) IsDBExist(user, db string) (bool, error) {
+	// TODO: Impl it.
+	return false, nil
 }
 
 func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
