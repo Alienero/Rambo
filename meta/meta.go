@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"path"
 
-	"github.com/Alienero/Rambo/config"
 	"github.com/Alienero/Rambo/mysql"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -21,6 +20,10 @@ type metaDB struct {
 func (m *metaDB) AddUser(user, password string) error {
 	_, err := m.client.Create(path.Join(UserInfo, user, Password), password, 0)
 	return err
+}
+
+func (m *metaDB) GetUserInfo(user string) (*etcd.Response, error) {
+	return m.client.Get(path.Join(UserInfo, user), false, true)
 }
 
 func (m *metaDB) AddBDatabase(db *Database) error {
@@ -92,8 +95,8 @@ func (m *metaDB) getPassword(user string) (string, error) {
 // }
 
 // InitMetaDB will Init DB.
-func InitMetaDB() {
-	Meta.client = etcd.NewClient(config.Config.Etcd.EtcdAddr)
+func InitMetaDB(machines []string) {
+	Meta.client = etcd.NewClient(machines)
 }
 
 type DBInfo struct {
