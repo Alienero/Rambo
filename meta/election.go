@@ -1,72 +1,91 @@
 package meta
 
-import "github.com/coreos/go-etcd/etcd"
+import (
+	"time"
+
+	"github.com/coreos/go-etcd/etcd"
+	"github.com/golang/glog"
+)
 
 // Election is elect leader in etcd
 type Election struct {
 	client     *etcd.Client
-	key        string
-	lastValue  string
 	localValue string
+	key        string
 	ttl        uint64
 	stop       chan bool
+	isClosed   bool
 	receiver   chan *etcd.Response
 }
 
-func (e *Election) initWatch() error {
-	_, err := e.client.Watch(e.key, 0, false, e.receiver, e.stop)
-	return err
-}
-
-func (e *Election) watch() error {
+// GetMaster get master node
+// if master node is not exist, it will elect new one
+func (e *Election) GetMaster(key string) (string, error) {
 renew:
-	// get the leader
-	resp, err := e.client.Get(e.key, false, false)
+	resp, err := e.client.Get(key, false, false)
 	if err != nil {
 		if etcdErr, ok := err.(*etcd.EtcdError); ok {
-			// if leader not exist
-			if etcdErr.ErrorCode == NotFoud {
-				if err = e.elect(true); err == nil {
+			if etcdErr.ErrorCode == NotFound {
+				if _, err = e.client.Create(key, e.localValue, e.ttl); err != nil {
 					goto renew
 				}
+				// this node is master
+				go e.update(key)
+				return e.localValue, nil
 			}
 		}
-		return err
+		return "", err
 	}
-	e.lastValue = resp.Node.Value
-	// watch leader node
+	return resp.Node.Value, nil
+}
+
+// Watch will watch keys with e.key perfix
+func (e *Election) Watch() {
+	_, err := e.client.Watch(e.key, 0, true, e.receiver, e.stop)
+	if err != nil {
+		glog.Fatal(err)
+	}
 	for {
 		resp, ok := <-e.receiver
 		if !ok {
-			return nil
+			glog.Info("masters watcher closed")
+			return
 		}
-		switch resp.Action {
-		case Get, Update:
-			// nothing to do
-		case Delete:
-			// stop
-			e.stopElect()
-			return nil
-		case Expire:
-			// elect new leader
-			e.elect(false)
-			goto renew
-		case Set, CAS, Create:
-			// new set
-			goto renew
+		if resp.Action == Expire {
+			go e.electMaster(resp.Node.Key, resp.Node.Value)
 		}
 	}
 }
 
-func (e *Election) elect(isCreate bool) (err error) {
-	if isCreate {
-		_, err = e.client.Create(e.key, e.localValue, e.ttl)
+func (e *Election) electMaster(key, lastValue string) {
+renew:
+	_, err := e.client.CompareAndSwap(key, e.localValue, e.ttl, lastValue, 0)
+	if err == nil {
+		e.update(key)
 	} else {
-		_, err = e.client.CompareAndSwap(e.key, e.localValue, e.ttl, e.lastValue, 0)
+		// check master
+		_, err := e.client.Get(key, false, false)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			goto renew
+		}
 	}
-	return
 }
 
-func (e *Election) stopElect() {
-	// TODO: impl it
+// Stop will stop Election
+func (e *Election) Stop() {
+	// TOOD: impl
+	e.isClosed = true
+}
+
+func (e *Election) update(key string) {
+	t := time.NewTicker(time.Duration(e.ttl / 2))
+	for {
+		<-t.C
+		// update node
+		_, err := e.client.CompareAndSwap(key, e.localValue, e.ttl, e.localValue, 0)
+		if err != nil {
+			return
+		}
+	}
 }
