@@ -35,7 +35,7 @@ const (
 
 // etcd error code
 const (
-	NotFoud      = 100
+	NotFound     = 100
 	NotEqual     = 101
 	AlreadyExist = 105
 )

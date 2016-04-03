@@ -3,6 +3,8 @@ package meta
 import (
 	"time"
 
+	"sync"
+
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 )
@@ -15,6 +17,7 @@ type Election struct {
 	ttl        uint64
 	stop       chan bool
 	isClosed   bool
+	onece      sync.Once
 	receiver   chan *etcd.Response
 }
 
@@ -40,7 +43,12 @@ renew:
 }
 
 // Watch will watch keys with e.key perfix
+// one instance only will called once
 func (e *Election) Watch() {
+	e.onece.Do(e.watch)
+}
+
+func (e *Election) watch() {
 	_, err := e.client.Watch(e.key, 0, true, e.receiver, e.stop)
 	if err != nil {
 		glog.Fatal(err)
