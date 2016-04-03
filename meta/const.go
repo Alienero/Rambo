@@ -8,7 +8,7 @@ const (
 	UserInfo = Perfix + "/user_info"
 	Password = "/password"
 	DB       = "/db"
-	Backends = "/Backends" // DB's sub dir.
+	Backends = "/backends" // DB's sub dir.
 	Scheme   = "/scheme"   // DB's sub dir.
 	Config   = "/config"   // DB's sub dir.
 	Tables   = "/tables"   // DB's sub dir.
@@ -19,15 +19,35 @@ const (
 	// by the backend's name.
 	MysqlInfo = Perfix + "/mysql_info"
 
-	// partition type.
+	// partition type
+
 	Hash  = "hash"
 	Range = "range"
 	CHash = "chash"
+
+	// DDL etcd config
+
+	DDLInfo   = Perfix + "/ddl_info"
+	Masters   = "/masters"    // k: user id, v: node addr
+	TaskQueue = "/task_queue" // k: user id, v: ddl excute plan
+	Lock      = "/lock"       // k: user/db/table, v: "lock"
 )
 
-// Error code
+// etcd error code
 const (
 	NotFoud      = 100
 	NotEqual     = 101
 	AlreadyExist = 105
+)
+
+// etcd action
+const (
+	Delete = "delete"
+	Set    = "set"
+	Create = "create"
+	Update = "update"
+	Expire = "expire"
+	Get    = "get"
+	CAS    = "compareAndSwap"
+	CAD    = "compareAndDelete"
 )
