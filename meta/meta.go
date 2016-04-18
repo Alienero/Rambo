@@ -2,6 +2,7 @@ package meta
 
 import (
 	"bytes"
+	"encoding/json"
 	"path"
 
 	"github.com/Alienero/Rambo/mysql"
@@ -10,11 +11,27 @@ import (
 	"github.com/golang/glog"
 )
 
-// Meta is metaDB's global public instance.
-var Meta metaDB
+// Info is metaDB's global public instance.
+var Info metaDB
 
 type metaDB struct {
 	client *etcd.Client
+}
+
+func (m *metaDB) GetMysqlNodes() ([]*MysqlNode, error) {
+	resp, err := m.client.Get(MysqlInfo, true, true)
+	if err != nil {
+		return nil, err
+	}
+	mns := make([]*MysqlNode, len(resp.Node.Nodes))
+	for _, node := range resp.Node.Nodes {
+		mn := new(MysqlNode)
+		if err = json.Unmarshal([]byte(node.Value), mn); err != nil {
+			return nil, err
+		}
+		mns = append(mns, mn)
+	}
+	return mns, nil
 }
 
 func (m *metaDB) AddUser(user, password string) error {
@@ -31,8 +48,16 @@ func (m *metaDB) AddBDatabase(db *Database) error {
 }
 
 func (m *metaDB) IsDBExist(user, db string) (bool, error) {
-	// TODO: Impl it.
-	return false, nil
+	_, err := m.client.Get(path.Join(UserInfo, user, DB, db), false, false)
+	if err != nil {
+		if e, ok := err.(*etcd.EtcdError); ok {
+			if e.ErrorCode == NotFound {
+				return false, nil
+			}
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
@@ -94,20 +119,20 @@ func (m *metaDB) getPassword(user string) (string, error) {
 // 	return scheme.Node.Value, ts, nil
 // }
 
-// InitMetaDB will Init DB.
-func InitMetaDB(machines []string) {
-	Meta.client = etcd.NewClient(machines)
+// InitMetaInfo will Init DB.
+func InitMetaInfo(machines []string) {
+	Info.client = etcd.NewClient(machines)
 }
 
-type DBInfo struct {
-	Scheme   string     `json:"scheme"` // default is `hash`
-	Tables   []*Table   `json:"tables"`
-	Backends []*Backend `json:"backends"`
-}
+// type DBInfo struct {
+// 	Tables   []*Table   `json:"tables"`
+// 	Backends []*Backend `json:"backends"`
+// }
 
 // Table is mysql table meta info.
 type Table struct {
 	Name         string `json:"name"`
+	Scheme       string `json:"scheme"` // default is `hash`
 	PartitionKey Key    `json:"partition-key"`
 	AutoKeys     []Key  `json:"auto-keys"`
 }
@@ -118,6 +143,7 @@ type Key struct {
 	Length int    `json:"length"`
 }
 
+// Backend is one of user's backends
 type Backend struct {
 	Host     string `json:"host"`
 	UserName string `json:"user-name"`

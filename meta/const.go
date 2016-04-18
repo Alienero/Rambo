@@ -8,8 +8,7 @@ const (
 	UserInfo = Perfix + "/user_info"
 	Password = "/password"
 	DB       = "/db"
-	Backends = "/backends" // DB's sub dir.
-	Scheme   = "/scheme"   // DB's sub dir.
+	Backends = "/backends" // DB's sub dir.   // Scheme   = "/scheme"   // DB's sub dir.
 	Config   = "/config"   // DB's sub dir.
 	Tables   = "/tables"   // DB's sub dir.
 

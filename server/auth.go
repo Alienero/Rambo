@@ -90,7 +90,7 @@ func (sei *session) readHandshakeResponse() error {
 	}
 
 	// user and password check.
-	if !meta.Meta.CheckUser(sei.user, auth, sei.salt, sei.db) {
+	if !meta.Info.CheckUser(sei.user, auth, sei.salt, sei.db) {
 		glog.Infof("User(%v) password or user name error", sei.user)
 		return mysql.NewDefaultError(mysql.ER_ACCESS_DENIED_ERROR)
 	}
