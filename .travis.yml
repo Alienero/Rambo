@@ -8,6 +8,9 @@ go:
 matrix:
   allow_failures:
     - go: tip
+    
+before_install:
+  - rm -rf Godeps
 
 script:
   - go test -timeout 3m --cover --race -cpu 1,2,4 ./...
