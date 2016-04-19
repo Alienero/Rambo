@@ -13,12 +13,25 @@ import (
 type Election struct {
 	client     *etcd.Client
 	localValue string
-	key        string
+	dir        string
 	ttl        uint64
 	stop       chan bool
 	isClosed   bool
 	onece      sync.Once
 	receiver   chan *etcd.Response
+	// when is elect to master callback
+	cb func(key string)
+}
+
+func NewElection(machines []string, dir string, ttl uint64, cb func(key string), localValue string) *Election {
+	return &Election{
+		client:     etcd.NewClient(machines),
+		localValue: localValue,
+		ttl:        ttl,
+		receiver:   make(chan *etcd.Response, 1000),
+		cb:         cb,
+		dir:        dir,
+	}
 }
 
 // GetMaster get master node
@@ -33,6 +46,7 @@ renew:
 					goto renew
 				}
 				// this node is master
+				e.cb(key)
 				go e.update(key)
 				return e.localValue, nil
 			}
@@ -49,7 +63,7 @@ func (e *Election) Watch() {
 }
 
 func (e *Election) watch() {
-	_, err := e.client.Watch(e.key, 0, true, e.receiver, e.stop)
+	_, err := e.client.Watch(e.dir, 0, true, e.receiver, e.stop)
 	if err != nil {
 		glog.Fatal(err)
 	}
@@ -69,6 +83,7 @@ func (e *Election) electMaster(key, lastValue string) {
 renew:
 	_, err := e.client.CompareAndSwap(key, e.localValue, e.ttl, lastValue, 0)
 	if err == nil {
+		e.cb(key)
 		e.update(key)
 	} else {
 		// check master

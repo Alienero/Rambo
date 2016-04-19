@@ -1,8 +1,12 @@
 package ddl
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
+	"strings"
+	"time"
 
 	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/rpc"
@@ -10,6 +14,10 @@ import (
 	"github.com/Alienero/Rambo/util/uuid"
 
 	"github.com/golang/glog"
+)
+
+const (
+	CreatDB = "CreatDB"
 )
 
 // DDL is responsible for schema change.
@@ -20,17 +28,11 @@ type DDL interface {
 	DropDatabase()
 }
 
-// Plan is DDL execute plan
-type Plan interface {
-	Plan()
-}
-
 type BasePlan struct {
 	SubPlans    []*SubPlan `json:"sub-plans"`
 	LockVersion int64      `json:"lock-version"`
 	ID          string     `json:"id"` // uuid
 	LockKey     string     `json:"lock-key"`
-	Master      string     `json:"master"`
 }
 
 type SubPlan struct {
@@ -45,12 +47,14 @@ type CreateDBPlan struct {
 	Password string `json:"password"`
 }
 
-func (*CreateDBPlan) Plan() {}
+// func (c *CreateDBPlan) Plan() string {
+// 	return c.User
+// }
 
-type CreateTablePlan struct {
-}
+// type CreateTablePlan struct {
+// }
 
-func (*CreateTablePlan) Plan() {}
+// func (*CreateTablePlan) Plan() {}
 
 // TODO:
 // 1 get ddl task from etcd, etcd lock
@@ -58,16 +62,47 @@ func (*CreateTablePlan) Plan() {}
 // 3 do task
 // 4 recorder tasks
 
+var errUnknowPlan = errors.New("unknow plan")
+
+// Task is DDL execute plan
+type Task struct {
+	Plan interface{}
+	Type string
+	ID   string
+	User string
+}
+
 // Manage manage handle all ddl stmt
 type Manage struct {
-	taskQueue chan *Plan
+	taskQueue chan *Task
 	w         Waitter
-	localAddr string
+	localAddr string // rpc addr
 
-	rc rpc.Client
 	rs rpc.Server
 
 	election *meta.Election
+	info     *meta.Info
+}
+
+func NewManage(machines []string, localAddr string) *Manage {
+	m := &Manage{
+		taskQueue: make(chan *Task, 1000),
+		w:         NewWait(),
+		localAddr: localAddr,
+		rs:        rpc.NewGobServer(localAddr),
+	}
+	m.election = meta.NewElection(machines, path.Join(meta.DDLInfo, meta.Masters),
+		uint64(time.Second*20), m.BecomeMaster, localAddr)
+	return m
+}
+
+// Run bootstrap ddl manage
+func (d *Manage) Run() {
+	// watch all masters
+	go d.election.Watch()
+	// handle tasks
+	go d.doTasks()
+	// TODO: start rpc server
 }
 
 func (d *Manage) getMaster(key string) (string, error) {
@@ -82,20 +117,20 @@ func (d *Manage) getMaster(key string) (string, error) {
 // CreateDatabase will create a new database for the uname's user
 func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	// check the db
-	isExist, err := meta.Info.IsDBExist(uname, database)
+	isExist, err := d.info.IsDBExist(uname, database)
 	if err != nil {
 		return err
 	}
 	if isExist {
 		return fmt.Errorf("database: %v is already exist", database)
 	}
-	masterid := uname
+	username := uname
 	// fix username and database name
 	uname += "/" + database
 	database = uname
 
 	// build the ddl plan
-	nodes, err := meta.Info.GetMysqlNodes()
+	nodes, err := d.info.GetMysqlNodes()
 	if err != nil {
 		return err
 	}
@@ -126,27 +161,33 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 			Node: node,
 		})
 	}
-	var plan Plan = &CreateDBPlan{
-		DBName:   database,
-		UserName: uname,
-		Password: password,
-		BasePlan: BasePlan{
-			SubPlans:    subs,
-			LockKey:     database,
-			ID:          uuid.Get(),
-			LockVersion: 0,
+	var t = &Task{
+		Plan: &CreateDBPlan{
+			DBName:   database,
+			UserName: uname,
+			Password: password,
+			BasePlan: BasePlan{
+				SubPlans:    subs,
+				LockKey:     database,
+				ID:          uuid.Get(),
+				LockVersion: 0,
+			},
 		},
+		User: username,
+		Type: CreatDB,
 	}
-	glog.Infof("DDL: create database plan:%v", plan)
+	glog.Infof("DDL: create database task:%+v", t)
 
 	// TODO: save plan, add etcd queue
-	master, err := d.getMaster(masterid)
+	master, err := d.getMaster(username)
 	if err != nil {
 		return err
 	}
 	// gRPC to master node
 	if master == d.localAddr {
-
+		d.taskQueue <- t
+	} else {
+		// TODO rpc to remote server
 	}
 	return nil
 }
@@ -166,13 +207,59 @@ func (d *Manage) DropDatabase() {
 
 }
 
-func (d *Manage) SendPlan(plan Plan, result *Result) {
-	// get an plan
+// SendTask send task to remote server
+func (d *Manage) SendTask(t *Task, result *Result) {
 	// record plan
+	id, err := d.info.SaveDDLTask(t, t.User)
+	if err != nil {
+		result.err = err
+		return
+	}
+	t.ID = id
+	d.taskQueue <- t
 }
 
-func (d *Manage) doTask() {
+func (d *Manage) getTasks(key string) {
+	// get master's tasks
+	if !strings.HasPrefix(key, path.Join(meta.DDLInfo, meta.TaskQueue)) {
+		return
+	}
+	_, user := path.Split(key)
+	nodes, err := d.info.GetTasks(user)
+	if err != nil {
+		glog.Infof("Get master(%v)'s tasks error:%v", user, err)
+		return
+	}
+	for _, node := range nodes {
+		t := new(Task)
+		if err := json.Unmarshal([]byte(node.Value), t); err != nil {
+			glog.Infof("Get master(%v)'s tasks error:%v", user, err)
+			return
+		}
+		t.ID = node.Key
+		d.taskQueue <- t
+	}
+}
 
+func (d *Manage) doTasks() {
+	for {
+		t, ok := <-d.taskQueue
+		if !ok {
+			glog.Info("Manage is closed")
+			return
+		}
+		glog.Info(t)
+		// TODO: impl
+	}
+}
+
+func (d *Manage) doTask(t *Task) {
+	// TODO: impl
+}
+
+// BecomeMaster is election's callback method
+func (d *Manage) BecomeMaster(key string) {
+	go d.getTasks(key)
 }
 
 type Result struct {

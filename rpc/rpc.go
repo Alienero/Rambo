@@ -6,7 +6,7 @@ import (
 )
 
 type Server interface {
-	ListenAndServe(addr string) error
+	ListenAndServe() error
 	Register(rcvr interface{}) error
 	RegisterName(name string, rcvr interface{}) error
 }
@@ -16,11 +16,19 @@ type CallResult struct {
 }
 
 type GobServer struct {
-	server rpc.Server
+	server *rpc.Server
+	addr   string
 }
 
-func (s *GobServer) ListenAndServe(addr string) error {
-	l, err := net.Listen("tcp", addr)
+func NewGobServer(addr string) *GobServer {
+	return &GobServer{
+		server: rpc.NewServer(),
+		addr:   addr,
+	}
+}
+
+func (s *GobServer) ListenAndServe() error {
+	l, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		return err
 	}
