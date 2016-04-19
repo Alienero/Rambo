@@ -20,17 +20,35 @@ type DDL interface {
 }
 
 // Plan is DDL execute plan
-type Plan struct {
-	SubPlans    []*subPlan `json:"sub-plans"`
+type Plan interface {
+	Plan()
+}
+
+type BasePlan struct {
+	SubPlans    []*SubPlan `json:"sub-plans"`
 	LockVersion int64      `json:"lock-version"`
 	ID          string     `json:"id"` // uuid
 	LockKey     string     `json:"lock-key"`
 }
 
-type subPlan struct {
+type SubPlan struct {
 	Node *meta.MysqlNode `json:"node"`
 	SQL  string          `json:"sql"`
 }
+
+type CreateDBPlan struct {
+	BasePlan
+	DBName   string `json:"db-name"`
+	UserName string `json:"user-name"`
+	Password string `json:"password"`
+}
+
+func (*CreateDBPlan) Plan() {}
+
+type CreateTablePlan struct {
+}
+
+func (*CreateTablePlan) Plan() {}
 
 // TODO:
 // 1 get ddl task from etcd, etcd lock
@@ -66,6 +84,9 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	if isExist {
 		return fmt.Errorf("database: %v is already exist", database)
 	}
+	// fix username and database name
+	uname += "/" + database
+	database = uname
 
 	// build the ddl plan
 	nodes, err := meta.Info.GetMysqlNodes()
@@ -78,34 +99,37 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	}
 	// SQL: CREATE USER 'pig'@'%' IDENTIFIED BY '123456';
 	//      GRANT privileges ON databasename.* TO 'username'@'%'
-	uname += "/" + database
-	database = uname
 	password := rand.String(15)
-	creataUser := fmt.Sprintf("CREATE USER '%s'@'%%' IDENTIFIED BY '%s';", uname, password)
+	creataUser := fmt.Sprintf("CREATE USER '%s'@'%%' IDENTIFIED BY '%s'", uname, password)
 	createDB := fmt.Sprintf("CREATE DATABASE %s", database)
 	grant := fmt.Sprintf("GRANT privileges ON %s.* TO '%s'@'%%'", database, uname)
-	subs := make([]*subPlan, 0, num*3)
+	subs := make([]*SubPlan, 0, num*3)
 	for i := 0; i < num; i++ {
 		index := num % len(nodes)
 		node := nodes[index]
-		subs = append(subs, &subPlan{
+		subs = append(subs, &SubPlan{
 			SQL:  creataUser,
 			Node: node,
 		})
-		subs = append(subs, &subPlan{
+		subs = append(subs, &SubPlan{
 			SQL:  createDB,
 			Node: node,
 		})
-		subs = append(subs, &subPlan{
+		subs = append(subs, &SubPlan{
 			SQL:  grant,
 			Node: node,
 		})
 	}
-	plan := &Plan{
-		SubPlans:    subs,
-		LockKey:     database,
-		ID:          uuid.Get(),
-		LockVersion: 0,
+	var plan Plan = &CreateDBPlan{
+		DBName:   database,
+		UserName: uname,
+		Password: password,
+		BasePlan: BasePlan{
+			SubPlans:    subs,
+			LockKey:     database,
+			ID:          uuid.Get(),
+			LockVersion: 0,
+		},
 	}
 	glog.Infof("DDL: create database plan:%v", plan)
 
