@@ -5,6 +5,7 @@ import (
 	"path"
 
 	"github.com/Alienero/Rambo/meta"
+	"github.com/Alienero/Rambo/rpc"
 	"github.com/Alienero/Rambo/util/rand"
 	"github.com/Alienero/Rambo/util/uuid"
 
@@ -29,6 +30,7 @@ type BasePlan struct {
 	LockVersion int64      `json:"lock-version"`
 	ID          string     `json:"id"` // uuid
 	LockKey     string     `json:"lock-key"`
+	Master      string     `json:"master"`
 }
 
 type SubPlan struct {
@@ -62,6 +64,9 @@ type Manage struct {
 	w         Waitter
 	localAddr string
 
+	rc rpc.Client
+	rs rpc.Server
+
 	election *meta.Election
 }
 
@@ -84,6 +89,7 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	if isExist {
 		return fmt.Errorf("database: %v is already exist", database)
 	}
+	masterid := uname
 	// fix username and database name
 	uname += "/" + database
 	database = uname
@@ -134,7 +140,7 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	glog.Infof("DDL: create database plan:%v", plan)
 
 	// TODO: save plan, add etcd queue
-	master, err := d.getMaster(uname)
+	master, err := d.getMaster(masterid)
 	if err != nil {
 		return err
 	}
@@ -160,6 +166,15 @@ func (d *Manage) DropDatabase() {
 
 }
 
+func (d *Manage) SendPlan(plan Plan, result *Result) {
+	// get an plan
+	// record plan
+}
+
 func (d *Manage) doTask() {
 
+}
+
+type Result struct {
+	err error
 }

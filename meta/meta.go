@@ -12,14 +12,20 @@ import (
 )
 
 // Info is metaDB's global public instance.
-var Info metaDB
-
-type metaDB struct {
-	client *etcd.Client
+type Info struct {
+	*etcd.Client
 }
 
-func (m *metaDB) GetMysqlNodes() ([]*MysqlNode, error) {
-	resp, err := m.client.Get(MysqlInfo, true, true)
+// NewInfo get a new meta information manage
+func NewInfo(machines []string) *Info {
+	return &Info{
+		Client: etcd.NewClient(machines),
+	}
+}
+
+// GetMysqlNodes get all mysql backend nodes
+func (m *Info) GetMysqlNodes() ([]*MysqlNode, error) {
+	resp, err := m.Get(MysqlInfo, true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -34,21 +40,21 @@ func (m *metaDB) GetMysqlNodes() ([]*MysqlNode, error) {
 	return mns, nil
 }
 
-func (m *metaDB) AddUser(user, password string) error {
-	_, err := m.client.Create(path.Join(UserInfo, user, Password), password, 0)
+func (m *Info) AddUser(user, password string) error {
+	_, err := m.Create(path.Join(UserInfo, user, Password), password, 0)
 	return err
 }
 
-func (m *metaDB) GetUserInfo(user string) (*etcd.Response, error) {
-	return m.client.Get(path.Join(UserInfo, user), false, true)
+func (m *Info) GetUserInfo(user string) (*etcd.Response, error) {
+	return m.Get(path.Join(UserInfo, user), false, true)
 }
 
-func (m *metaDB) AddBDatabase(db *Database) error {
+func (m *Info) AddBDatabase(db *Database) error {
 	return nil
 }
 
-func (m *metaDB) IsDBExist(user, db string) (bool, error) {
-	_, err := m.client.Get(path.Join(UserInfo, user, DB, db), false, false)
+func (m *Info) IsDBExist(user, db string) (bool, error) {
+	_, err := m.Get(path.Join(UserInfo, user, DB, db), false, false)
 	if err != nil {
 		if e, ok := err.(*etcd.EtcdError); ok {
 			if e.ErrorCode == NotFound {
@@ -60,7 +66,7 @@ func (m *metaDB) IsDBExist(user, db string) (bool, error) {
 	return true, nil
 }
 
-func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) bool {
+func (m *Info) CheckUser(user string, auth []byte, salt []byte, db string) bool {
 	password, err := m.getPassword(user)
 	if err != nil {
 		return false
@@ -71,7 +77,7 @@ func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) boo
 		return false
 	}
 	if db != "" {
-		_, err = m.client.Get(UserInfo+"/"+user+DB+db, false, false)
+		_, err = m.Get(UserInfo+"/"+user+DB+db, false, false)
 		if err != nil {
 			glog.Infof("Can not get Etcd user db error:%v", err)
 			return false
@@ -81,7 +87,7 @@ func (m *metaDB) CheckUser(user string, auth []byte, salt []byte, db string) boo
 	return true
 }
 
-func (m *metaDB) CheckUserDirect(user, password string) bool {
+func (m *Info) CheckUserDirect(user, password string) bool {
 	p, err := m.getPassword(user)
 	if err != nil {
 		return false
@@ -89,8 +95,8 @@ func (m *metaDB) CheckUserDirect(user, password string) bool {
 	return password == p
 }
 
-func (m *metaDB) getPassword(user string) (string, error) {
-	resp, err := m.client.Get(UserInfo+"/"+user+Password, false, false)
+func (m *Info) getPassword(user string) (string, error) {
+	resp, err := m.Get(UserInfo+"/"+user+Password, false, false)
 	if err != nil {
 		glog.Warningf("Get Etcd User password error:%v", err)
 		return "", err
@@ -118,11 +124,6 @@ func (m *metaDB) getPassword(user string) (string, error) {
 // 	}
 // 	return scheme.Node.Value, ts, nil
 // }
-
-// InitMetaInfo will Init DB.
-func InitMetaInfo(machines []string) {
-	Info.client = etcd.NewClient(machines)
-}
 
 // type DBInfo struct {
 // 	Tables   []*Table   `json:"tables"`

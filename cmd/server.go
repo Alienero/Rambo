@@ -23,7 +23,9 @@ var serverCmd = &cobra.Command{
 			flag.Set("v", "10")
 		}
 		defer glog.Flush()
-		// default mysql port.
+		// default etcd addrs
+		config.Config.Etcd.EtcdAddr = []string{"http://192.168.99.100:4001"}
+		// default mysql port
 		config.Config.Server.ListenAddr = "localhost:3306"
 		s := server.NewSever()
 		// listenning

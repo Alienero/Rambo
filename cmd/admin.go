@@ -33,8 +33,7 @@ var addUserCmd = &cobra.Command{
 		if len(args) != 2 {
 			panic("bad input")
 		}
-		meta.InitMetaInfo(strings.Split(etcd, ","))
-		manage := admin.Admin{}
+		manage := admin.NewAdmin(meta.NewInfo(strings.Split(etcd, ",")))
 		if err := manage.AddUser(args[0], args[1]); err != nil {
 			fmt.Println(err)
 			os.Exit(1)

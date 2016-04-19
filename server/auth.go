@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/mysql"
 
 	"github.com/golang/glog"
@@ -90,7 +89,7 @@ func (sei *session) readHandshakeResponse() error {
 	}
 
 	// user and password check.
-	if !meta.Info.CheckUser(sei.user, auth, sei.salt, sei.db) {
+	if !sei.server.info.CheckUser(sei.user, auth, sei.salt, sei.db) {
 		glog.Infof("User(%v) password or user name error", sei.user)
 		return mysql.NewDefaultError(mysql.ER_ACCESS_DENIED_ERROR)
 	}

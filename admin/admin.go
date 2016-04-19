@@ -16,16 +16,24 @@ var (
 // Admin provide some method to manage database
 type Admin struct {
 	isLogin bool
+	info    *meta.Info
+}
+
+// NewAdmin get a new Admin instance
+func NewAdmin(info *meta.Info) *Admin {
+	return &Admin{
+		info: info,
+	}
 }
 
 // AddUser add a database user
-func (Admin) AddUser(user, password string) error {
-	return meta.Info.AddUser(user, password)
+func (a *Admin) AddUser(user, password string) error {
+	return a.info.AddUser(user, password)
 }
 
 // GetUser will get user's info.
-func (Admin) GetUser(user string) (string, error) {
-	resp, err := meta.Info.GetUserInfo(user)
+func (a *Admin) GetUser(user string) (string, error) {
+	resp, err := a.info.GetUserInfo(user)
 	if err != nil {
 		return "", err
 	}
@@ -37,7 +45,7 @@ func (Admin) GetUser(user string) (string, error) {
 }
 
 // Login check the user.
-func (m *Admin) Login(user, password string) bool {
-	m.isLogin = meta.Info.CheckUserDirect(user, password)
-	return m.isLogin
+func (a *Admin) Login(user, password string) bool {
+	a.isLogin = a.info.CheckUserDirect(user, password)
+	return a.isLogin
 }
