@@ -14,7 +14,7 @@ func (d *Info) Lock(key string, id string, seq int64) error {
 }
 
 func (d *Info) UnLock(key string, id string, seq int64) error {
-	_, err := d.CompareAndDelete(d.lockPath(key), path.Join(id, strconv.FormatInt(seq, 10)), 0)
+	_, err := d.Update(d.lockPath(key), path.Join(id, strconv.FormatInt(seq, 10)), 0)
 	if e, ok := err.(etcd.EtcdError); ok {
 		if e.ErrorCode == NotFound {
 			err = nil
