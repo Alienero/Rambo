@@ -1,6 +1,7 @@
 package ddl
 
 import (
+	"path"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -102,9 +103,9 @@ func (w *Wait) Wait(dl *DDLLock) {
 	case 1:
 		w.getLock(key[0], &w.users).Lock()
 	case 2:
-		w.getLock(key[1], &w.databases).Lock()
+		w.getLock(path.Join(key[0], key[1]), &w.databases).Lock()
 	case 3:
-		w.getLock(key[2], &w.tables).Lock()
+		w.getLock(path.Join(key[0], key[1], key[2]), &w.tables).Lock()
 	}
 	w.locks[dl.ID] = dl
 }
@@ -130,9 +131,9 @@ func (w *Wait) Continue(dl *DDLLock) {
 	case 1:
 		w.getLock(key[0], &w.users).Lock()
 	case 2:
-		w.getLock(key[1], &w.databases).Lock()
+		w.getLock(path.Join(key[0], key[1]), &w.databases).Lock()
 	case 3:
-		w.getLock(key[2], &w.tables).Lock()
+		w.getLock(path.Join(key[0], key[1], key[2]), &w.tables).Lock()
 	}
 
 	w.lpool.Lock(dl.ID)
@@ -159,10 +160,10 @@ func (w *Wait) Add(keys string) {
 		w.getLock(key[0], &w.users).RLock()
 	}
 	if len(key) > 1 {
-		w.getLock(key[1], &w.databases).RLock()
+		w.getLock(path.Join(key[0], key[1]), &w.databases).RLock()
 	}
 	if len(key) > 2 {
-		w.getLock(key[2], &w.tables).RLock()
+		w.getLock(path.Join(key[0], key[1], key[2]), &w.tables).RLock()
 	}
 }
 
@@ -171,10 +172,10 @@ func (w *Wait) Add(keys string) {
 func (w *Wait) Done(keys string) {
 	key := strings.Split(keys, "/")
 	if len(key) > 2 {
-		w.getLock(key[2], &w.tables).RUnlock()
+		w.getLock(path.Join(key[0], key[1], key[2]), &w.tables).RUnlock()
 	}
 	if len(key) > 1 {
-		w.getLock(key[1], &w.databases).RUnlock()
+		w.getLock(path.Join(key[0], key[1]), &w.databases).RUnlock()
 	}
 	if len(key) > 0 {
 		w.getLock(key[0], &w.users).RUnlock()
