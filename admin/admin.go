@@ -10,7 +10,7 @@ import (
 var (
 	errInvalidUser = errors.New("invalid user")
 	errDBExisted   = errors.New("db is arlready existed")
-	errMarshlJSON  = errors.New("marshl json error")
+	errMarshalJSON = errors.New("marshal json error")
 )
 
 // Admin provide some method to manage database
@@ -39,7 +39,7 @@ func (a *Admin) GetUser(user string) (string, error) {
 	}
 	data, err := json.MarshalIndent(resp, "", "\t")
 	if err != nil {
-		return "", errMarshlJSON
+		return "", errMarshalJSON
 	}
 	return string(data), nil
 }
