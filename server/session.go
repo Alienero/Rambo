@@ -5,6 +5,7 @@ import (
 	"net"
 	"runtime"
 
+	"github.com/Alienero/Rambo/ddl"
 	"github.com/Alienero/Rambo/mysql"
 
 	"github.com/golang/glog"
@@ -113,12 +114,14 @@ func (sei *session) dispatch(data []byte) error {
 
 	switch cmd {
 	case mysql.COM_QUIT:
+		return sei.Close()
 	case mysql.COM_QUERY:
 		// TODO: test stmt,should rm.
 		fmt.Println(cmd)
 		fmt.Println(string(data))
 		sei.writeOK(nil)
 	case mysql.COM_PING:
+		return sei.writeOK(nil)
 	case mysql.COM_INIT_DB:
 	case mysql.COM_FIELD_LIST:
 	case mysql.COM_STMT_PREPARE:
@@ -133,4 +136,8 @@ func (sei *session) dispatch(data []byte) error {
 		return mysql.NewError(mysql.ER_UNKNOWN_ERROR, msg)
 	}
 	return nil
+}
+
+func (sei *session) ddlManage() *ddl.Manage {
+	return sei.server.ddlManage
 }
