@@ -34,6 +34,7 @@ var serverCmd = &cobra.Command{
 		s := server.NewSever()
 		// listenning
 		go s.Run()
+		go s.StartDDLMange()
 		// register this server
 		stop, err := s.GetInfo().CreateAndHeartBeat(meta.ProxyNodes, config.Config.Server.ListenAddr,
 			config.Config.Etcd.UpdateTTL, true)

@@ -62,3 +62,22 @@ func (d *Info) GetTasks(user string) (etcd.Nodes, error) {
 	}
 	return resp.Node.Nodes, nil
 }
+
+// UpdateTask will update this task
+func (d *Info) UpdateTask(user, id, value string) error {
+	_, err := d.Update(path.Join(DDLInfo, TaskQueue, user, id), value, 0)
+	return err
+}
+
+// SaveCreateDatabase save db info into etcd
+func (d *Info) SaveCreateDatabase(user, db, tid string, backends []*Backend) error {
+	for _, backend := range backends {
+		data, _ := json.Marshal(backend)
+		_, err := d.Set(path.Join(UserInfo, user, DB, db, Backends, backend.Name), string(data), 0)
+		if err != nil {
+			return err
+		}
+	}
+	_, err := d.Delete(path.Join(DDLInfo, TaskQueue, user, tid), true)
+	return err
+}

@@ -1,7 +1,8 @@
 package meta
 
 const (
-	Perfix = "/rambo"
+	Perfix     = "/rambo"
+	ProxyNodes = Perfix + "/proxy_nodes"
 
 	// users' config.
 
@@ -16,8 +17,7 @@ const (
 	// MysqlInfo is a dir.
 	// each backend node's config record in a name which named
 	// by the backend's name.
-	MysqlInfo  = Perfix + "/mysql_info"
-	ProxyNodes = "/proxy_nodes"
+	MysqlInfo = Perfix + "/mysql_info"
 
 	// partition type
 

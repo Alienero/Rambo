@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Alienero/Rambo/config"
+	"github.com/Alienero/Rambo/ddl"
 	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/util/safemap"
 
@@ -12,22 +13,28 @@ import (
 )
 
 type Server struct {
-	addr     string
-	seq      uint32
-	sessions *safemap.Map
-	info     *meta.Info
+	addr      string
+	seq       uint32
+	sessions  *safemap.Map
+	info      *meta.Info
+	ddlManage *ddl.Manage
 }
 
 func NewSever() *Server {
 	return &Server{
-		sessions: safemap.NewMap(),
-		addr:     config.Config.Server.ListenAddr,
-		info:     meta.NewInfo(config.Config.Etcd.EtcdAddr),
+		sessions:  safemap.NewMap(),
+		addr:      config.Config.Server.ListenAddr,
+		info:      meta.NewInfo(config.Config.Etcd.EtcdAddr),
+		ddlManage: ddl.NewManage(config.Config.Etcd.EtcdAddr, config.Config.Server.RPCAddr),
 	}
 }
 
 func (s *Server) GetInfo() *meta.Info {
 	return s.info
+}
+
+func (s *Server) StartDDLMange() {
+	s.ddlManage.Run()
 }
 
 func (s *Server) Run() {

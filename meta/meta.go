@@ -23,6 +23,19 @@ func NewInfo(machines []string) *Info {
 	}
 }
 
+// GetAllProxyNodes will get all proxy nodes
+func (m *Info) GetAllProxyNodes() ([]string, error) {
+	resp, err := m.Get(ProxyNodes, false, true)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, 0, len(resp.Node.Nodes))
+	for _, node := range resp.Node.Nodes {
+		result = append(result, node.Value)
+	}
+	return result, nil
+}
+
 // GetMysqlNodes get all mysql backend nodes
 func (m *Info) GetMysqlNodes() ([]*MysqlNode, error) {
 	resp, err := m.Get(MysqlInfo, true, true)
@@ -146,10 +159,11 @@ type Key struct {
 
 // Backend is one of user's backends
 type Backend struct {
-	Host     string `json:"host"`
-	UserName string `json:"user-name"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
+	Host       string     `json:"host"`
+	UserName   string     `json:"user-name"`
+	Password   string     `json:"password"`
+	Name       string     `json:"name"` // backend's name
+	ParentNode *MysqlNode `json:"parent"`
 }
 
 // MysqlNode is one mysql server.
@@ -157,7 +171,7 @@ type MysqlNode struct {
 	Host     string `json:"host"`
 	UserName string `json:"user-name"`
 	Password string `json:"password"`
-	Name     string `json:"name"`
+	Name     string `json:"name"` // node's name
 }
 
 // Database is global database config.
