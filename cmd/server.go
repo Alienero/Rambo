@@ -3,8 +3,12 @@ package cmd
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Alienero/Rambo/config"
+	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/server"
 
 	"github.com/golang/glog"
@@ -29,7 +33,19 @@ var serverCmd = &cobra.Command{
 		config.Config.Server.ListenAddr = "localhost:3306"
 		s := server.NewSever()
 		// listenning
-		s.Run()
+		go s.Run()
+		// register this server
+		stop, err := s.GetInfo().CreateAndHeartBeat(meta.ProxyNodes, config.Config.Server.ListenAddr,
+			config.Config.Etcd.UpdateTTL, true)
+		if err != nil {
+			glog.Fatal(err)
+		}
+		defer stop()
+		// signal
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+		<-signalCh
+		glog.Info("Signal received, initializing clean shutdown...")
 	},
 }
 

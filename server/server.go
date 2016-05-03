@@ -26,6 +26,10 @@ func NewSever() *Server {
 	}
 }
 
+func (s *Server) GetInfo() *meta.Info {
+	return s.info
+}
+
 func (s *Server) Run() {
 	glog.Info("Server Load will listen on:", s.addr)
 	l, err := net.Listen("tcp", s.addr)

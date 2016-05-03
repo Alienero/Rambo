@@ -1,7 +1,5 @@
 package config
 
-import ()
-
 var Config conf
 
 type conf struct {
@@ -13,12 +11,15 @@ type conf struct {
 // Meta infomation.
 type etcd struct {
 	// mutil etcd nodes.
-	EtcdAddr []string
-	Salt     []byte
+	EtcdAddr  []string
+	Salt      []byte
+	UpdateTTL uint64
 }
 
 type server struct {
 	ListenAddr string
+	RPCAddr    string
 }
 
-type proxy struct{}
+type proxy struct {
+}
