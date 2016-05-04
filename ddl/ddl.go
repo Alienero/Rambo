@@ -63,7 +63,7 @@ var errUnknowPlan = errors.New("unknow plan")
 type Task struct {
 	Plan interface{}
 	Type string
-	ID   string
+	Seq  string
 	User string
 
 	c chan *Result
@@ -173,7 +173,7 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	}
 	// gRPC to master node
 	if remote == d.localAddr {
-		glog.Infof("using local handle task(%v)", t.ID)
+		glog.Infof("using local handle task(%v) plan(%v)", t.Seq, t.Plan.ID)
 		t.newC()
 		d.taskQueue <- t
 		r := t.wait()
@@ -212,12 +212,12 @@ func (d *Manage) DropDatabase() {
 func (d *Manage) SendTask(t *Task, result *Result) {
 	glog.Infof("get a task:%v", t)
 	// record plan
-	id, err := d.info.SaveDDLTask(t, t.User)
+	seq, err := d.info.SaveDDLTask(t, t.User)
 	if err != nil {
 		result.err = err
 		return
 	}
-	t.ID = id
+	t.Seq = seq
 	d.taskQueue <- t
 }
 
@@ -244,8 +244,8 @@ func (d *Manage) getTasks(key string) {
 	}
 	for _, node := range nodes {
 		t := &Task{
-			ID: node.Key,
-			c:  make(chan *Result, 1),
+			Seq: node.Key,
+			c  : make(chan *Result, 1),
 		}
 		if err := json.Unmarshal([]byte(node.Value), t); err != nil {
 			glog.Infof("Get master(%v)'s tasks error:%v", user, err)
@@ -339,7 +339,7 @@ func (d *Manage) doTask(t *Task) *Result {
 				t.Plan = plan
 				data, _ := json.Marshal(t)
 				plan.FinishNodes = append(plan.FinishNodes, sp.Node)
-				d.info.UpdateTask(t.User, t.ID, string(data))
+				d.info.UpdateTask(t.User, t.Seq, string(data))
 			} else {
 				// register result
 				backends := make([]*meta.Backend, 0, len(plan.FinishNodes))
@@ -353,7 +353,7 @@ func (d *Manage) doTask(t *Task) *Result {
 					}
 					backends = append(backends, backend)
 				}
-				err = d.info.SaveCreateDatabase(plan.UserName, plan.DBName, plan.ID, backends)
+				err = d.info.SaveCreateDatabase(plan.UserName, plan.DBName, t.Seq, backends)
 				if err != nil {
 					r.err = err
 					break
