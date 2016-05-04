@@ -173,7 +173,7 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 	}
 	// gRPC to master node
 	if remote == d.localAddr {
-		glog.Infof("using local handle task(%v) plan(%v)", t.Seq, t.Plan.ID)
+		glog.Infof("using local handle task(%v) plan(%v)", t.Seq, t.Plan.(*CreateDBPlan).ID)
 		t.newC()
 		d.taskQueue <- t
 		r := t.wait()
