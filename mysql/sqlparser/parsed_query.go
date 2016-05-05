@@ -16,6 +16,9 @@ type ParsedQuery struct {
 }
 
 func IsNodeHasValue(node SQLNode) bool {
+	if node == nil {
+		return false
+	}
 	t := reflect.TypeOf(node)
 	v := reflect.ValueOf(node)
 	switch t.Kind() {

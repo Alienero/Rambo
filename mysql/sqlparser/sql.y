@@ -107,6 +107,8 @@ func forceEOF(yylex interface{}) {
 %type <statement> insert_statement update_statement delete_statement set_statement
 %type <statement> create_statement alter_statement rename_statement drop_statement
 %type <statement> analyze_statement explain_statement explainable_stmt other_statement
+%type <statement> show_statment use_statment 
+%type <tableExprs> show_from
 %type <bytes2> comment_opt comment_list 
 %type <str> union_op
 %type <str> distinct_opt
@@ -180,7 +182,34 @@ command:
 | rename_statement
 | drop_statement
 | analyze_statement
+| show_statment
+| use_statment
 | other_statement
+
+show_statment:
+  SHOW ID show_from where_expression_opt
+  {
+    $$ = &Show{Key: string($2), From: $3, Where: NewWhere(WhereStr, $4)}
+  }
+| SHOW ID show_from LIKE value_expression
+  {
+    $$ = &Show{Key: string($2), From: $3, Like: &ComparisonExpr{Left: nil, Operator: LikeStr, Right: $5}}
+  }
+ 
+ show_from:
+  {
+    $$ = nil
+  }
+| FROM table_references
+  {
+    $$ = $2
+  }
+ 
+ use_statment:
+   USE ID
+   {
+     $$ = &UseDB{DB: string($2)}
+   }
 
 explain_statement:
   EXPLAIN explainable_stmt
@@ -299,11 +328,7 @@ analyze_statement:
   }
 
 other_statement:
-  SHOW force_eof
-  {
-    $$ = &Other{}
-  }
-| DESCRIBE force_eof
+  DESCRIBE force_eof
   {
     $$ = &Other{}
   }

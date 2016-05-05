@@ -1491,8 +1491,6 @@ func (node Str) Nodes() []SQLNode {
 	return nil
 }
 
-// TODO: DDLs
-
 // ColumnOptionType is the type for ColumnOption.
 type ColumnOptionType int
 
@@ -1575,3 +1573,36 @@ const (
 	DatabaseOptionCharset
 	DatabaseOptionCollate
 )
+
+type UseDB struct {
+	DB string
+}
+
+func (*UseDB) iStatement() {}
+
+func (node *UseDB) Format(buf *TrackedBuffer) {
+	buf.Myprintf("use %s", node.DB)
+}
+
+// Nodes renturn this sqlnode's all children node.
+func (node *UseDB) Nodes() []SQLNode {
+	return []SQLNode{Str(node.DB)}
+}
+
+type Show struct {
+	Key   string
+	From  TableExprs
+	Where *Where
+	Like  *ComparisonExpr
+}
+
+func (*Show) iStatement() {}
+
+func (node *Show) Format(buf *TrackedBuffer) {
+	buf.Myprintf("show %s %v %v %v", node.Key, node.From, node.Where, node.Like)
+}
+
+// Nodes renturn this sqlnode's all children node.
+func (node *Show) Nodes() []SQLNode {
+	return []SQLNode{Str(node.Key), node.From, node.Where, node.Like}
+}

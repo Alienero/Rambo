@@ -37,7 +37,9 @@ func (sei *session) handleQuery(data []byte) error {
 		switch v := stmt.(type) {
 		case *ast.CreateDatabaseStmt:
 			dbname := v.Name
-			return sei.ddlManage().CreateDatabase(sei.user, dbname, 0)
+			id, err := sei.ddlManage().CreateDatabase(sei.user, dbname, 0)
+			glog.Infof("DDL plan id(%v)", id)
+			return err
 		default:
 			return fmt.Errorf("create statement %T not support now", stmt)
 		}
