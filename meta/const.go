@@ -27,10 +27,11 @@ const (
 
 	// DDL etcd config
 
-	DDLInfo   = Perfix + "/ddl_info"
-	Masters   = "/masters"    // k: user id, v: node addr
-	TaskQueue = "/task_queue" // k: user id, v: ddl excute plan
-	Lock      = "/lock"       // k: user/db/table, v: "lock"
+	DDLInfo    = Perfix + "/ddl_info"
+	TaskStatus = "task_status" // DDLInfo/[user]/TaskStatus/[task_id]
+	Masters    = "/masters"    // k: user id, v: node addr
+	TaskQueue  = "/task_queue" // k: user id, v: ddl excute plan
+	Lock       = "/lock"       // k: user/db/table, v: "lock"
 )
 
 // etcd error code

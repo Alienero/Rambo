@@ -23,18 +23,10 @@ const (
 
 // DDL is responsible for schema change.
 type DDL interface {
-	CreateDatabase()
-	CreateTable()
-	DropTable()
-	DropDatabase()
-}
-
-// BasePlan is base ddl plan
-type BasePlan struct {
-	SubPlans    []*SubPlan `json:"sub-plans"`
-	LockVersion int64      `json:"lock-version"`
-	ID          string     `json:"id"` // uuid
-	LockKey     string     `json:"lock-key"`
+	CreateDatabase(uname, database string, num int) (id string, err error)
+	CreateTable() (id string, err error)
+	DropTable() (id string, err error)
+	DropDatabase() (id string, err error)
 }
 
 // SubPlan is one of ddl's sub plans
@@ -43,11 +35,15 @@ type SubPlan struct {
 	SQL  string          `json:"sql"`
 }
 
-// CreateDBPlan ddl createDB plan
-type CreateDBPlan struct {
-	BasePlan
+// Plan is ddl execute plan
+type Plan struct {
+	SubPlans    []*SubPlan        `json:"sub-plans"`
+	LockVersion int64             `json:"lock-version"`
+	ID          string            `json:"id"` // uuid
+	LockKey     string            `json:"lock-key"`
 	DBName      string            `json:"db-name"`
 	UserName    string            `json:"user-name"`
+	TableName   string            `json:"table-name"`
 	FinishNodes []*meta.MysqlNode `json:"finish-nodes"`
 }
 
@@ -61,10 +57,9 @@ var errUnknowPlan = errors.New("unknow plan")
 
 // Task is DDL execute plan
 type Task struct {
-	Plan interface{}
+	Plan *Plan
 	Type string
 	Seq  string
-	User string
 
 	c chan *Result
 }
@@ -79,6 +74,11 @@ func (t *Task) done(r *Result) {
 
 func (t *Task) wait() *Result {
 	return <-t.c
+}
+
+// ID get task's id
+func (t *Task) ID() string {
+	return t.Plan.ID
 }
 
 // Manage manage handle all ddl stmt
@@ -129,11 +129,11 @@ func (d *Manage) getMaster(key string) (string, error) {
 }
 
 // CreateDatabase will create a new database for the uname's user
-func (d *Manage) CreateDatabase(uname, database string, num int) error {
+func (d *Manage) CreateDatabase(uname, database string, num int) (string, error) {
 	// build the ddl plan
 	nodes, err := d.info.GetMysqlNodes()
 	if err != nil {
-		return err
+		return "", err
 	}
 	// get users backend
 	if num == 0 {
@@ -150,30 +150,30 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 		})
 	}
 	var t = &Task{
-		Plan: &CreateDBPlan{
-			DBName:   database,
-			UserName: uname,
-			BasePlan: BasePlan{
-				SubPlans:    subs,
-				LockKey:     path.Join(uname, database),
-				ID:          uuid.Get(),
-				LockVersion: 0,
-			},
+		Plan: &Plan{
+			DBName:      database,
+			UserName:    uname,
+			SubPlans:    subs,
+			LockKey:     path.Join(uname, database),
+			ID:          uuid.Get(),
+			LockVersion: 0,
 		},
-		User: uname,
 		Type: CreatDB,
 		c:    make(chan *Result, 1),
 	}
 	glog.Infof("DDL: create database task:%+v", t)
+	return t.Plan.ID, d.handleTask(t)
+}
 
+func (d *Manage) handleTask(t *Task) error {
 	// let master node save task, add etcd queue
-	remote, err := d.getMaster(uname)
+	remote, err := d.getMaster(t.Plan.UserName)
 	if err != nil {
 		return err
 	}
-	// gRPC to master node
+	// rpc to master node
 	if remote == d.localAddr {
-		glog.Infof("using local handle task(%v) plan(%v)", t.Seq, t.Plan.(*CreateDBPlan).ID)
+		glog.Infof("using local handle task(%v) plan(%v)", t.Seq, t.Plan.ID)
 		t.newC()
 		d.taskQueue <- t
 		r := t.wait()
@@ -194,31 +194,32 @@ func (d *Manage) CreateDatabase(uname, database string, num int) error {
 
 // CreateTable get a CreateTable task
 // IMPORTANT: only support hash type yet!!!
-func (d *Manage) CreateTable() {
-
+func (d *Manage) CreateTable() (id string, err error) {
+	return
 }
 
 // DropTable get a DropTable task
-func (d *Manage) DropTable() {
-
+func (d *Manage) DropTable() (id string, err error) {
+	return
 }
 
 // DropDatabase get a DropDatabase task
-func (d *Manage) DropDatabase() {
-
+func (d *Manage) DropDatabase() (id string, err error) {
+	return
 }
 
 // SendTask send task to remote server
 func (d *Manage) SendTask(t *Task, result *Result) {
 	glog.Infof("get a task:%v", t)
 	// record plan
-	seq, err := d.info.SaveDDLTask(t, t.User)
+	seq, err := d.info.SaveDDLTask(t, t.Plan.UserName)
 	if err != nil {
 		result.err = err
 		return
 	}
 	t.Seq = seq
 	d.taskQueue <- t
+	*result = *t.wait()
 }
 
 // CallLock will lock key specific source
@@ -245,7 +246,7 @@ func (d *Manage) getTasks(key string) {
 	for _, node := range nodes {
 		t := &Task{
 			Seq: node.Key,
-			c  : make(chan *Result, 1),
+			c:   make(chan *Result, 1),
 		}
 		if err := json.Unmarshal([]byte(node.Value), t); err != nil {
 			glog.Infof("Get master(%v)'s tasks error:%v", user, err)
@@ -275,124 +276,149 @@ func (d *Manage) doTasks() {
 func (d *Manage) doTask(t *Task) *Result {
 	// TODO: impl
 	r := new(Result)
+	plan := t.Plan
+	// get status
+	status, err := d.GetTaskStatus(plan.UserName, plan.ID)
+	if err != nil {
+		r.err = err
+		return r
+	}
+	// prepare handle task
 	switch t.Type {
 	case CreatDB:
-		plan := t.Plan.(*CreateDBPlan)
 		// check the db
 		isExist, err := d.info.IsDBExist(plan.UserName, plan.DBName)
 		if err != nil {
 			r.err = err
-			break
+			return r
 		}
 		if isExist {
 			r.err = fmt.Errorf("database: %v is already exist in user(%v)", plan.DBName, plan.UserName)
-			break
+			return r
 		}
-		// execute ddl plan
-		// etcd lock
-		if err := d.info.Lock(plan.LockKey, plan.ID, plan.LockVersion); err != nil {
-			panic(err) // if err is not nil, this node is unreliable
-		}
-		// TODO:
-		// rpc boardcast lock
-		plan.LockVersion++
-		// get all nodes
-		rpcs, err := d.info.GetAllProxyNodes()
-		if err != nil {
-			// TODO: retry, it must success
-			panic(err)
-		}
-		for _, addr := range rpcs {
-			c, err := rpc.NewGobClient(addr)
-			if err != nil {
-				// TODO: retry, it must success
-				panic(err)
-			}
-			lock := getDDLLock(plan.LockKey, plan.LockVersion, plan.ID)
-			if err = c.Call("Manage.CallLock", lock, nil); err != nil {
-				// TODO: retry, it must success
-				panic(err)
-			}
-		}
-		// dotask
-		for _, sp := range plan.SubPlans {
-			db, err := client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, "", 0)
-			if err != nil {
-				// TODO: retry, it must success
-				panic(err)
-			}
-			conn, err := db.GetConn()
-			if err != nil {
-				// TODO: retry, it must success
-				panic(err)
-			}
-			defer conn.Close()
-			_, err = conn.Execute(sp.SQL)
-			if err != nil {
-				r.err = err
-				break
-			}
-			db.Close()
-			// record
-			if len(plan.SubPlans) > 1 {
-				plan.SubPlans = plan.SubPlans[1:]
-				t.Plan = plan
-				data, _ := json.Marshal(t)
-				plan.FinishNodes = append(plan.FinishNodes, sp.Node)
-				d.info.UpdateTask(t.User, t.Seq, string(data))
-			} else {
-				// register result
-				backends := make([]*meta.Backend, 0, len(plan.FinishNodes))
-				for _, node := range plan.FinishNodes {
-					backend := &meta.Backend{
-						Host:       node.Host,
-						Name:       node.Name,
-						UserName:   node.Password,
-						Password:   node.Password,
-						ParentNode: node,
-					}
-					backends = append(backends, backend)
-				}
-				err = d.info.SaveCreateDatabase(plan.UserName, plan.DBName, t.Seq, backends)
-				if err != nil {
-					r.err = err
-					break
-				}
-			}
-		}
-
-		// unlock etcd lock
-		plan.LockVersion++
-		if err = d.info.UnLock(plan.LockKey, plan.ID, plan.LockVersion); err != nil {
-			// TODO
-			panic(err)
-		}
-		// rpc boardcast unlock
-		plan.LockVersion++
-
-		// get all nodes
-		rpcs, err = d.info.GetAllProxyNodes()
-		if err != nil {
-			// TODO: retry, it must success
-			panic(err)
-		}
-		for _, addr := range rpcs {
-			c, err := rpc.NewGobClient(addr)
-			if err != nil {
-				// TODO: retry, it must success
-				panic(err)
-			}
-			lock := getDDLLock(plan.LockKey, plan.LockVersion, plan.ID)
-			if err = c.Call("Manage.CallUnLock", lock, nil); err != nil {
-				// TODO: retry, it must success
-				panic(err)
-			}
-		}
-
 	default:
 		r.err = fmt.Errorf("not support task's type:%v", t.Type)
 	}
+	// execute task
+	for _, sp := range plan.SubPlans {
+		d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Doing, "", status)
+		if err := d.executeSubPlan(sp, t); err != nil {
+			d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Fail, err.Error(), status)
+			r.err = err
+			break
+		} else {
+			d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Done, "", status)
+		}
+		// record
+		if len(plan.SubPlans) > 1 {
+			plan.SubPlans = plan.SubPlans[1:]
+			data, _ := json.Marshal(t)
+			plan.FinishNodes = append(plan.FinishNodes, sp.Node)
+			d.info.UpdateTask(t.Plan.UserName, t.Seq, string(data))
+		} else {
+			// register result
+			if err = d.registerTaskResult(t); err != nil {
+				r.err = err
+				break
+			}
+		}
+	}
 	return r
+}
+
+func (d *Manage) executeSubPlan(sp *SubPlan, t *Task) error {
+	db, err := client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, "", 0)
+	if err != nil {
+		// TODO: retry, it must success
+		return err
+	}
+	conn, err := db.GetConn()
+	if err != nil {
+		// TODO: retry, it must success
+		return err
+	}
+	defer conn.Close()
+	_, err = conn.Execute(sp.SQL)
+	if err != nil {
+		return err
+	}
+	db.Close()
+	return nil
+}
+
+func (d *Manage) registerTaskResult(t *Task) error {
+	switch t.Type {
+	case CreatDB:
+		backends := make([]*meta.Backend, 0, len(t.Plan.FinishNodes))
+		for _, node := range t.Plan.FinishNodes {
+			backend := &meta.Backend{
+				Host:       node.Host,
+				Name:       node.Name,
+				UserName:   node.Password,
+				Password:   node.Password,
+				ParentNode: node,
+			}
+			backends = append(backends, backend)
+		}
+		return d.info.SaveCreateDatabase(t.Plan.UserName, t.Plan.DBName, t.Seq, backends)
+
+	default:
+		return fmt.Errorf("not support task's type:%v", t.Type)
+	}
+}
+
+// TasksStatus is task's status
+type TasksStatus map[string]*TaskStatus
+
+// NewTasksStatus return a new TasksStatus instance
+func NewTasksStatus() TasksStatus {
+	return make(TasksStatus)
+}
+
+func (ts TasksStatus) update(node, status, info string) TasksStatus {
+	m := (map[string]*TaskStatus)(ts)
+	if t, ok := m[node]; ok {
+		t.Status = status
+		t.Info = info
+	} else {
+		m[node] = &TaskStatus{
+			Status: status,
+			Info:   info,
+		}
+	}
+	return ts
+}
+
+type TaskStatus struct {
+	Status string `json:"node-status"`
+	Info   string `json:"info"`
+}
+
+const (
+	Wait  = "wait"
+	Doing = "doing"
+	Done  = "done"
+	Fail  = "fail"
+)
+
+func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts TasksStatus) error {
+	ts = ts.update(node, status, info)
+	data, err := json.Marshal(ts)
+	if err != nil {
+		return err
+	}
+	return d.info.SetTaskStatus(uname, id, data)
+}
+
+// GetTaskStatus will get task's status
+func (d *Manage) GetTaskStatus(uname, id string) (TasksStatus, error) {
+	data, err := d.info.GetTaskStatus(uname, id)
+	if err != nil {
+		return nil, err
+	}
+	t := make(TasksStatus)
+	err = json.Unmarshal(data, t)
+	return t, err
 }
 
 // BecomeMaster is election's callback method
@@ -402,7 +428,8 @@ func (d *Manage) BecomeMaster(key string) {
 
 // Result is the result of rpc
 type Result struct {
-	err error
+	err  error
+	info []byte
 }
 
 // DDLLock is a rambo lock
@@ -426,3 +453,5 @@ const (
 	StatusLock   = "lock"
 	StatusUnlock = "unlock"
 )
+
+var _ DDL = &Manage{}

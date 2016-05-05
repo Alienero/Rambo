@@ -47,7 +47,7 @@ func (d *Info) SaveDDLTask(v interface{}, user string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resp, err := d.CreateInOrder(path.Join(DDLInfo, TaskQueue, user), string(data), 0)
+	resp, err := d.CreateInOrder(path.Join(DDLInfo, user, TaskQueue), string(data), 0)
 	if err != nil {
 		return "", err
 	}
@@ -56,7 +56,7 @@ func (d *Info) SaveDDLTask(v interface{}, user string) (string, error) {
 
 // GetTasks get the user's all tasks
 func (d *Info) GetTasks(user string) (etcd.Nodes, error) {
-	resp, err := d.Get(path.Join(DDLInfo, TaskQueue, user), true, true)
+	resp, err := d.Get(path.Join(DDLInfo, user, TaskQueue), true, true)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +65,7 @@ func (d *Info) GetTasks(user string) (etcd.Nodes, error) {
 
 // UpdateTask will update this task
 func (d *Info) UpdateTask(user, id, value string) error {
-	_, err := d.Update(path.Join(DDLInfo, TaskQueue, user, id), value, 0)
+	_, err := d.Update(path.Join(DDLInfo, user, TaskQueue, id), value, 0)
 	return err
 }
 
@@ -80,4 +80,19 @@ func (d *Info) SaveCreateDatabase(user, db, tid string, backends []*Backend) err
 	}
 	_, err := d.Delete(path.Join(DDLInfo, TaskQueue, user, tid), true)
 	return err
+}
+
+// SetTaskStatus set task's status
+func (d *Info) SetTaskStatus(user, id string, data []byte) error {
+	_, err := d.Set(path.Join(DDLInfo, user, TaskStatus, id), string(data), 0)
+	return err
+}
+
+// GetTaskStatus get task's status
+func (d *Info) GetTaskStatus(user, id string) ([]byte, error) {
+	resp, err := d.Get(path.Join(DDLInfo, user, TaskStatus, id), false, false)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(resp.Node.Value), nil
 }
