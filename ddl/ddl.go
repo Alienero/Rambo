@@ -217,6 +217,16 @@ func (d *Manage) SendTask(t *Task, result *Result) {
 		result.err = err
 		return
 	}
+	status := NewTasksStatus()
+	// set up task status monitor
+	for _, sp := range t.Plan.SubPlans {
+		status.update(sp.Node.Name, Pending, "")
+	}
+	d.setTaskStatus(t.Plan.UserName, t.ID(), status)
+	if err != nil {
+		result.err = err
+		return
+	}
 	t.Seq = seq
 	d.taskQueue <- t
 	*result = *t.wait()
@@ -371,17 +381,18 @@ func (d *Manage) registerTaskResult(t *Task) error {
 type TasksStatus map[string]*TaskStatus
 
 // NewTasksStatus return a new TasksStatus instance
-func NewTasksStatus() TasksStatus {
-	return make(TasksStatus)
+func NewTasksStatus() *TasksStatus {
+	t := make(TasksStatus)
+	return &t
 }
 
-func (ts TasksStatus) update(node, status, info string) TasksStatus {
-	m := (map[string]*TaskStatus)(ts)
-	if t, ok := m[node]; ok {
+func (ts *TasksStatus) update(node, status, info string) *TasksStatus {
+	m := (*map[string]*TaskStatus)(ts)
+	if t, ok := (*m)[node]; ok {
 		t.Status = status
 		t.Info = info
 	} else {
-		m[node] = &TaskStatus{
+		(*m)[node] = &TaskStatus{
 			Status: status,
 			Info:   info,
 		}
@@ -395,14 +406,18 @@ type TaskStatus struct {
 }
 
 const (
-	Wait  = "wait"
-	Doing = "doing"
-	Done  = "done"
-	Fail  = "fail"
+	Pending = "wait"
+	Doing   = "doing"
+	Done    = "done"
+	Fail    = "fail"
 )
 
-func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts TasksStatus) error {
-	ts = ts.update(node, status, info)
+func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts *TasksStatus) error {
+	ts.update(node, status, info)
+	return d.setTaskStatus(uname, id, ts)
+}
+
+func (d *Manage) setTaskStatus(uname, id string, ts *TasksStatus) error {
 	data, err := json.Marshal(ts)
 	if err != nil {
 		return err
@@ -411,14 +426,14 @@ func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts Tasks
 }
 
 // GetTaskStatus will get task's status
-func (d *Manage) GetTaskStatus(uname, id string) (TasksStatus, error) {
+func (d *Manage) GetTaskStatus(uname, id string) (*TasksStatus, error) {
 	data, err := d.info.GetTaskStatus(uname, id)
 	if err != nil {
 		return nil, err
 	}
 	t := make(TasksStatus)
 	err = json.Unmarshal(data, t)
-	return t, err
+	return &t, err
 }
 
 // BecomeMaster is election's callback method
