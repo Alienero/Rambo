@@ -433,6 +433,9 @@ type TableExprs []TableExpr
 
 // Format formats the node.
 func (node TableExprs) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
 	var prefix string
 	for _, n := range node {
 		buf.Myprintf("%s%v", prefix, n)
@@ -806,6 +809,9 @@ const (
 
 // Format formats the node.
 func (node *ComparisonExpr) Format(buf *TrackedBuffer) {
+	if node == nil {
+		return
+	}
 	buf.Myprintf("%v %s %v", node.Left, node.Operator, node.Right)
 }
 
@@ -1599,7 +1605,7 @@ type Show struct {
 func (*Show) iStatement() {}
 
 func (node *Show) Format(buf *TrackedBuffer) {
-	buf.Myprintf("show %s %v %v %v", node.Key, node.From, node.Where, node.Like)
+	buf.Myprintf("show %s%v%v%v", node.Key, node.From, node.Where, node.Like)
 }
 
 // Nodes renturn this sqlnode's all children node.

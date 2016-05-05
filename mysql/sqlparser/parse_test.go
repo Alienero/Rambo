@@ -521,8 +521,7 @@ func TestValid(t *testing.T) {
 		input:  "analyze table a",
 		output: "alter table a",
 	}, {
-		input:  "show foobar",
-		output: "other",
+		input: "show foobar",
 	}, {
 		input:  "describe foobar",
 		output: "other",
