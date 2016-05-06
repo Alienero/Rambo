@@ -119,6 +119,7 @@ func (sei *session) dispatch(data []byte) error {
 		// TODO: test stmt,should rm.
 		fmt.Println(cmd)
 		fmt.Println(string(data))
+		// r := new(mysql.Result)
 		sei.writeOK(nil)
 	case mysql.COM_PING:
 		return sei.writeOK(nil)

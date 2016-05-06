@@ -6,8 +6,9 @@ import (
 )
 
 var (
-	ErrBadConn       = errors.New("connection was bad")
-	ErrMalformPacket = errors.New("Malform packet error")
+	ErrBadConn         = errors.New("connection was bad")
+	ErrMalformPacket   = errors.New("Malform packet error")
+	ErrInvalidArgument = errors.New("invalid argument")
 
 	ErrTxDone = errors.New("sql: Transaction has already been committed or rolled back")
 )

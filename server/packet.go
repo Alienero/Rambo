@@ -56,3 +56,38 @@ func (sei *session) writeEOF(status uint16) error {
 
 	return sei.pkg.WritePacket(data)
 }
+
+func (sei *session) writeResult(status uint16, r *mysql.Resultset) error {
+	columnLen := mysql.PutLengthEncodedInt(uint64(len(r.Fields)))
+	data := make([]byte, 4, 1024)
+	data = append(data, columnLen...)
+	if err := sei.pkg.WritePacket(data); err != nil {
+		return err
+	}
+
+	for _, v := range r.Fields {
+		data = data[0:4]
+		data = append(data, v.Dump()...)
+		if err := sei.pkg.WritePacket(data); err != nil {
+			return err
+		}
+	}
+
+	if err := sei.writeEOF(status); err != nil {
+		return err
+	}
+
+	for _, v := range r.RowDatas {
+		data = data[0:4]
+		data = append(data, v...)
+		if err := sei.pkg.WritePacket(data); err != nil {
+			return err
+		}
+	}
+
+	if err := sei.writeEOF(status); err != nil {
+		return err
+	}
+
+	return nil
+}
