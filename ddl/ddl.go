@@ -209,13 +209,13 @@ func (d *Manage) DropDatabase() (id string, err error) {
 }
 
 // SendTask send task to remote server
-func (d *Manage) SendTask(t *Task, result *Result) {
+func (d *Manage) SendTask(t *Task, result *Result) error {
 	glog.Infof("get a task:%v", t)
 	// record plan
 	seq, err := d.info.SaveDDLTask(t, t.Plan.UserName)
 	if err != nil {
 		result.err = err
-		return
+		return err
 	}
 	status := NewTasksStatus()
 	// set up task status monitor
@@ -225,11 +225,12 @@ func (d *Manage) SendTask(t *Task, result *Result) {
 	d.setTaskStatus(t.Plan.UserName, t.ID(), status)
 	if err != nil {
 		result.err = err
-		return
+		return err
 	}
 	t.Seq = seq
 	d.taskQueue <- t
 	*result = *t.wait()
+	return nil
 }
 
 // CallLock will lock key specific source

@@ -68,9 +68,6 @@ func (sei *session) readHandshakeResponse() error {
 	sei.user = string(data[pos : pos+bytes.IndexByte(data[pos:], 0)])
 	pos += len(sei.user) + 1
 
-	// for debug
-	glog.Info("User:", sei.user)
-
 	// auth length and auth
 	authLen := int(data[pos])
 	pos++

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path"
 	"syscall"
 
 	"github.com/Alienero/Rambo/config"
@@ -31,12 +32,14 @@ var serverCmd = &cobra.Command{
 		config.Config.Etcd.EtcdAddr = []string{"http://192.168.99.100:4001"}
 		// default mysql port
 		config.Config.Server.ListenAddr = "localhost:3306"
+		config.Config.Etcd.UpdateTTL = 10
+		config.Config.Server.RPCAddr = "localhost:5645"
 		s := server.NewSever()
 		// listenning
 		go s.Run()
 		go s.StartDDLMange()
 		// register this server
-		stop, err := s.GetInfo().CreateAndHeartBeat(meta.ProxyNodes, config.Config.Server.ListenAddr,
+		stop, err := s.GetInfo().CreateAndHeartBeat(path.Join(meta.ProxyNodes, config.Config.Server.RPCAddr), config.Config.Server.RPCAddr,
 			config.Config.Etcd.UpdateTTL, true)
 		if err != nil {
 			glog.Fatal(err)

@@ -5,12 +5,11 @@ import (
 	"strconv"
 
 	"github.com/Alienero/Rambo/mysql"
-	"github.com/siddontang/go/hack"
 )
 
 func formatValue(value interface{}) ([]byte, error) {
 	if value == nil {
-		return hack.Slice("NULL"), nil
+		return []byte("NULL"), nil
 	}
 	switch v := value.(type) {
 	case int8:
@@ -40,7 +39,7 @@ func formatValue(value interface{}) ([]byte, error) {
 	case []byte:
 		return v, nil
 	case string:
-		return hack.Slice(v), nil
+		return []byte(v), nil
 	default:
 		return nil, fmt.Errorf("invalid type %T", value)
 	}
@@ -100,7 +99,7 @@ func (sei *session) buildResultset(fields []*mysql.Field, names []string, values
 				} else {
 					field := &mysql.Field{}
 					r.Fields[j] = field
-					field.Name = hack.Slice(names[j])
+					field.Name = []byte(names[j])
 					if err = formatField(field, value); err != nil {
 						return nil, err
 					}
@@ -118,5 +117,21 @@ func (sei *session) buildResultset(fields []*mysql.Field, names []string, values
 		r.RowDatas = append(r.RowDatas, row)
 	}
 
+	return r, nil
+}
+
+func (sei *session) buildEmptySet(names []string, t []interface{}) (*mysql.Resultset, error) {
+	r := new(mysql.Resultset)
+
+	r.Fields = make([]*mysql.Field, len(names))
+
+	for n, name := range names {
+		field := &mysql.Field{}
+		r.Fields[n] = field
+		field.Name = []byte(name)
+		if err := formatField(field, t[n]); err != nil {
+			return nil, err
+		}
+	}
 	return r, nil
 }

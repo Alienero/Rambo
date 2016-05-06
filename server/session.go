@@ -59,7 +59,7 @@ func (sei *session) serve() {
 			const size = 4096
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			glog.Error("serve panic %v: %v\n%s", sei.rw.RemoteAddr().String(), err, buf)
+			glog.Errorf("serve panic %v: %v\n%s", sei.rw.RemoteAddr().String(), err, buf)
 		}
 		sei.server.sessions.Delete(sei.id)
 		sei.Close()
@@ -117,10 +117,8 @@ func (sei *session) dispatch(data []byte) error {
 		return sei.Close()
 	case mysql.COM_QUERY:
 		// TODO: test stmt,should rm.
-		fmt.Println(cmd)
-		fmt.Println(string(data))
-		// r := new(mysql.Result)
-		sei.writeOK(nil)
+		fmt.Println(cmd, string(data))
+		return sei.handleQuery(data)
 	case mysql.COM_PING:
 		return sei.writeOK(nil)
 	case mysql.COM_INIT_DB:

@@ -38,7 +38,6 @@ func (s *Server) StartDDLMange() {
 }
 
 func (s *Server) Run() {
-	glog.Info("Server Load will listen on:", s.addr)
 	l, err := net.Listen("tcp", s.addr)
 	if err != nil {
 		glog.Fatal(err)

@@ -117,6 +117,27 @@ func (m *Info) getPassword(user string) (string, error) {
 	return resp.Node.Value, nil
 }
 
+func (m *Info) ShowDatabases(user string) ([]string, error) {
+	resp, err := m.Get(path.Join(UserInfo, user, DB), true, true)
+	if err != nil {
+		if e, ok := err.(*etcd.EtcdError); ok {
+			if e.ErrorCode == NotFound {
+				return nil, nil
+			}
+		}
+		return nil, err
+	}
+	s := make([]string, 0, len(resp.Node.Nodes))
+	for _, db := range resp.Node.Nodes {
+		s = append(s, db.Value)
+	}
+	return s, nil
+}
+
+func (m *Info) ShowTables(user, db string) ([]string, error) {
+	return nil, nil
+}
+
 // scheme include : special fied, shard scheme, shard key
 // TODO: we should cache the information.
 // func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, []string, error) {

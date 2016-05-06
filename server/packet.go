@@ -57,7 +57,7 @@ func (sei *session) writeEOF(status uint16) error {
 	return sei.pkg.WritePacket(data)
 }
 
-func (sei *session) writeResult(status uint16, r *mysql.Resultset) error {
+func (sei *session) writeResultset(status uint16, r *mysql.Resultset) error {
 	columnLen := mysql.PutLengthEncodedInt(uint64(len(r.Fields)))
 	data := make([]byte, 4, 1024)
 	data = append(data, columnLen...)
