@@ -21,7 +21,7 @@ func (sei *session) handleSet(stmt *sqlparser.Set) error {
 			if err != nil {
 				return sei.writeError(mysql.NewDefaultError(mysql.ER_WRONG_VALUE_FOR_VAR, buf.String(), name))
 			}
-			sei.args[name] = i
+			sei.dbnum = i
 			return sei.writeOK(nil)
 		}
 		return sei.writeError(mysql.NewDefaultError(mysql.ER_WRONG_VALUE_FOR_VAR, buf.String(), name))

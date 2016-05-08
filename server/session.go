@@ -27,9 +27,11 @@ type session struct {
 	pkg        *mysql.PacketIO
 	collation  mysql.CollationId
 	server     *Server
-	closed     bool                   // is session closed.
-	password   string                 // backend psw
-	args       map[string]interface{} // system args
+	closed     bool   // is session closed.
+	password   string // backend psw
+
+	// system's args
+	dbnum int
 }
 
 func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {
@@ -42,7 +44,6 @@ func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {
 		charset:   mysql.DEFAULT_CHARSET,
 		collation: mysql.DEFAULT_COLLATION_ID,
 		server:    server,
-		args:      make(map[string]interface{}),
 	}
 	return sei, nil
 }

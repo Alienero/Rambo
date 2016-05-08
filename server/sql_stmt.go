@@ -74,12 +74,7 @@ func (sei *session) handleQuery(data []byte) error {
 		switch v := stmt.(type) {
 		case *ast.CreateDatabaseStmt:
 			dbname := v.Name
-			num := 0
-			dbnum, ok := sei.args["dbnum"]
-			if ok {
-				num = dbnum.(int)
-			}
-			id, rows, err := sei.ddlManage().CreateDatabase(sei.user, dbname, num)
+			id, rows, err := sei.ddlManage().CreateDatabase(sei.user, dbname, sei.dbnum)
 			glog.Infof("DDL plan id(%v)", id)
 			if err != nil {
 				glog.Infof("CREATE TABLE has an error(%v)", err)
