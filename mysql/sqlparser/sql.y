@@ -99,7 +99,7 @@ func forceEOF(yylex interface{}) {
 
 // DDL Tokens
 %token <empty> CREATE ALTER DROP RENAME ANALYZE
-%token <empty> TABLE INDEX VIEW TO IGNORE IF UNIQUE USING
+%token <empty> TABLE DATABASE INDEX VIEW TO IGNORE IF UNIQUE USING 
 %token <empty> SHOW DESCRIBE EXPLAIN
 
 %type <statement> command
@@ -288,6 +288,10 @@ create_statement:
 | CREATE VIEW sql_id force_eof
   {
     $$ = &DDL{Action: CreateStr, NewName: SQLName($3)}
+  }
+| CREATE DATABASE table_id force_eof
+  {
+    $$ = &DDL{Action: CreateStr, NewName: $3, IsDB: true}
   }
 
 alter_statement:

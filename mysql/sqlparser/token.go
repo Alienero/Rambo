@@ -93,6 +93,7 @@ var keywords = map[string]int{
 	"show":           SHOW,
 	"straight_join":  STRAIGHT_JOIN,
 	"table":          TABLE,
+	"database":       DATABASE,
 	"then":           THEN,
 	"to":             TO,
 	"true":           TRUE,

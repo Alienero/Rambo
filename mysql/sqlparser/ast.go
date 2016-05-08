@@ -269,6 +269,7 @@ type DDL struct {
 	Action  string
 	Table   SQLName
 	NewName SQLName
+	IsDB    bool
 }
 
 // DDL strings.
