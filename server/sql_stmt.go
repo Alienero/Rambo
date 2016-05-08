@@ -8,8 +8,6 @@ import (
 	"github.com/Alienero/Rambo/mysql/sqlparser"
 
 	"github.com/golang/glog"
-	"github.com/pingcap/tidb/ast"
-	"github.com/pingcap/tidb/parser"
 )
 
 func (sei *session) handleQuery(data []byte) error {
@@ -66,30 +64,9 @@ func (sei *session) handleQuery(data []byte) error {
 	case *sqlparser.Set:
 		// only support like `SET autocommit=1`
 		return sei.handleSet(v)
+
 	case *sqlparser.DDL:
-		stmt, err := parser.ParseOneStmt(sql, "", "")
-		if err != nil {
-			return err
-		}
-		switch v := stmt.(type) {
-		case *ast.CreateDatabaseStmt:
-			dbname := v.Name
-			id, rows, err := sei.ddlManage().CreateDatabase(sei.user, dbname, sei.dbnum)
-			glog.Infof("DDL plan id(%v)", id)
-			if err != nil {
-				glog.Infof("CREATE TABLE has an error(%v)", err)
-				err = sei.writeError(err)
-			} else {
-				// one time only creata a db
-				r := &mysql.Result{
-					AffectedRows: rows,
-				}
-				err = sei.writeOK(r)
-			}
-			return err
-		default:
-			return fmt.Errorf("create statement %T not support now", stmt)
-		}
+		return sei.handleDDL(sql)
 
 	case *sqlparser.Show:
 		r, err := sei.handleShow(v)
