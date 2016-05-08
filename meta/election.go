@@ -102,7 +102,7 @@ func (e *Election) Stop() {
 }
 
 func (e *Election) update(key string) {
-	t := time.NewTicker(time.Duration(e.ttl / 2))
+	t := time.NewTicker(time.Duration(e.ttl/2) * time.Second)
 	for {
 		<-t.C
 		// update node

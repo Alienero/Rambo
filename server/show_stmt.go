@@ -5,6 +5,7 @@ import (
 
 	"github.com/Alienero/Rambo/mysql"
 	"github.com/Alienero/Rambo/mysql/sqlparser"
+	"github.com/golang/glog"
 )
 
 func (sei *session) handleShow(stmt *sqlparser.Show) (*mysql.Resultset, error) {
@@ -27,6 +28,7 @@ func (sei *session) handleShow(stmt *sqlparser.Show) (*mysql.Resultset, error) {
 		if len(dbs) > 0 {
 			values = make([][]interface{}, 0, len(dbs))
 		} else {
+			glog.Info("empty databases")
 			r, err = sei.buildEmptySet(name, []interface{}{""})
 			break
 		}
@@ -35,8 +37,13 @@ func (sei *session) handleShow(stmt *sqlparser.Show) (*mysql.Resultset, error) {
 		}
 		r, err = sei.buildResultset(nil, name, values)
 	case "tables":
+		if sei.db == "" {
+			return nil, mysql.NewError(mysql.ER_NO_DB_ERROR, mysql.MySQLErrName[mysql.ER_NO_DB_ERROR])
+		}
 
 	case "ddl_task":
+		// get tasks
+		// TODO
 
 	}
 	return r, err

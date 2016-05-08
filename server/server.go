@@ -21,11 +21,12 @@ type Server struct {
 }
 
 func NewSever() *Server {
+	info := meta.NewInfo(config.Config.Etcd.EtcdAddr)
 	return &Server{
 		sessions:  safemap.NewMap(),
 		addr:      config.Config.Server.ListenAddr,
-		info:      meta.NewInfo(config.Config.Etcd.EtcdAddr),
-		ddlManage: ddl.NewManage(config.Config.Etcd.EtcdAddr, config.Config.Server.RPCAddr),
+		info:      info,
+		ddlManage: ddl.NewManage(config.Config.Etcd.EtcdAddr, config.Config.Server.RPCAddr, info),
 	}
 }
 

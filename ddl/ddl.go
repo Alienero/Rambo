@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/Alienero/Rambo/meta"
+	"github.com/Alienero/Rambo/mysql"
 	"github.com/Alienero/Rambo/mysql/client"
 	"github.com/Alienero/Rambo/rpc"
 	"github.com/Alienero/Rambo/util/uuid"
@@ -18,33 +19,35 @@ import (
 
 const (
 	// CreatDB is the type of the create database plan
-	CreatDB = "CreatDB"
+	CreateDB = "CreatDB"
 )
 
 // DDL is responsible for schema change.
 type DDL interface {
-	CreateDatabase(uname, database string, num int) (id string, err error)
-	CreateTable() (id string, err error)
-	DropTable() (id string, err error)
-	DropDatabase() (id string, err error)
+	CreateDatabase(uname, database string, num int) (id string, rows uint64, err error)
+	CreateTable() (id string, rows uint64, err error)
+	DropTable() (id string, rows uint64, err error)
+	DropDatabase() (id string, rows uint64, err error)
 }
 
 // SubPlan is one of ddl's sub plans
 type SubPlan struct {
-	Node *meta.MysqlNode `json:"node"`
-	SQL  string          `json:"sql"`
+	Node        *meta.MysqlNode `json:"node"`
+	SubDatabase *meta.Backend   `json:"backend"`
+	IsDB        bool            `json:"is-db"`
+	SQL         string          `json:"sql"`
 }
 
 // Plan is ddl execute plan
 type Plan struct {
-	SubPlans    []*SubPlan        `json:"sub-plans"`
-	LockVersion int64             `json:"lock-version"`
-	ID          string            `json:"id"` // uuid
-	LockKey     string            `json:"lock-key"`
-	DBName      string            `json:"db-name"`
-	UserName    string            `json:"user-name"`
-	TableName   string            `json:"table-name"`
-	FinishNodes []*meta.MysqlNode `json:"finish-nodes"`
+	SubPlans    []*SubPlan      `json:"sub-plans"`
+	LockVersion int64           `json:"lock-version"`
+	ID          string          `json:"id"` // uuid
+	LockKey     string          `json:"lock-key"`
+	DBName      string          `json:"db-name"`
+	UserName    string          `json:"user-name"`
+	TableName   string          `json:"table-name"`
+	FinishNodes []*meta.Backend `json:"finish-nodes"`
 }
 
 // TODO:
@@ -94,18 +97,19 @@ type Manage struct {
 }
 
 // NewManage get a new Manage instance
-func NewManage(machines []string, localAddr string) *Manage {
+func NewManage(machines []string, localAddr string, info *meta.Info) *Manage {
 	m := &Manage{
 		taskQueue: make(chan *Task, 1000),
 		w:         NewWait(),
 		localAddr: localAddr,
 		rs:        rpc.NewGobServer(localAddr),
+		info:      info,
 	}
 	if err := m.rs.Register(m); err != nil {
 		panic(err)
 	}
 	m.election = meta.NewElection(machines, path.Join(meta.DDLInfo, meta.Masters),
-		uint64(time.Second*20), m.BecomeMaster, localAddr)
+		20, m.BecomeMaster, localAddr)
 	return m
 }
 
@@ -129,23 +133,33 @@ func (d *Manage) getMaster(key string) (string, error) {
 }
 
 // CreateDatabase will create a new database for the uname's user
-func (d *Manage) CreateDatabase(uname, database string, num int) (string, error) {
+func (d *Manage) CreateDatabase(uname, database string, num int) (string, uint64, error) {
 	// build the ddl plan
 	nodes, err := d.info.GetMysqlNodes()
 	if err != nil {
-		return "", err
+		return "", 0, err
 	}
 	// get users backend
 	if num == 0 {
 		num = len(nodes)
 	}
-	createDB := fmt.Sprintf("CREATE DATABASE %s", path.Join(uname, database))
+	glog.Infof("Create Database sub db num is: %v", num)
 	subs := make([]*SubPlan, 0, num)
 	for i := 0; i < num; i++ {
-		index := num % len(nodes)
+		dbName := fmt.Sprintf("%s_%s_%s", uname, database, strconv.Itoa(i))
+		createDB := fmt.Sprintf("CREATE DATABASE %s", dbName)
+		index := i % len(nodes)
 		node := nodes[index]
 		subs = append(subs, &SubPlan{
 			SQL:  createDB,
+			IsDB: true,
+			SubDatabase: &meta.Backend{
+				UserName:   node.UserName,
+				Password:   node.Password,
+				Host:       node.Host,
+				Name:       dbName,
+				ParentNode: node,
+			},
 			Node: node,
 		})
 	}
@@ -158,53 +172,53 @@ func (d *Manage) CreateDatabase(uname, database string, num int) (string, error)
 			ID:          uuid.Get(),
 			LockVersion: 0,
 		},
-		Type: CreatDB,
+		Type: CreateDB,
 		c:    make(chan *Result, 1),
 	}
 	glog.Infof("DDL: create database task:%+v", t)
-	return t.Plan.ID, d.handleTask(t)
+	rows, err := d.handleTask(t)
+	return t.Plan.ID, rows, err
 }
 
-func (d *Manage) handleTask(t *Task) error {
+func (d *Manage) handleTask(t *Task) (uint64, error) {
 	// let master node save task, add etcd queue
 	remote, err := d.getMaster(t.Plan.UserName)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// rpc to master node
+	r := new(Result)
 	if remote == d.localAddr {
 		glog.Infof("using local handle task(%v) plan(%v)", t.Seq, t.Plan.ID)
-		t.newC()
-		d.taskQueue <- t
-		r := t.wait()
-		return r.err
+		err = d.SendTask(t, r)
+	} else {
+		// rpc send task
+		var c rpc.Client
+		c, err = rpc.NewGobClient(remote)
+		if err != nil {
+			return 0, err
+		}
+		err = c.Call("Manage.SendTask", t, r)
 	}
-	// rpc send task
-	c, err := rpc.NewGobClient(remote)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	r := new(Result)
-	err = c.Call("Manage.SendTask", t, r)
-	if err != nil {
-		return err
-	}
-	return r.err
+	return r.affectedRows, r.err
 }
 
 // CreateTable get a CreateTable task
 // IMPORTANT: only support hash type yet!!!
-func (d *Manage) CreateTable() (id string, err error) {
+func (d *Manage) CreateTable() (id string, rows uint64, err error) {
 	return
 }
 
 // DropTable get a DropTable task
-func (d *Manage) DropTable() (id string, err error) {
+func (d *Manage) DropTable() (id string, rows uint64, err error) {
 	return
 }
 
 // DropDatabase get a DropDatabase task
-func (d *Manage) DropDatabase() (id string, err error) {
+func (d *Manage) DropDatabase() (id string, rows uint64, err error) {
 	return
 }
 
@@ -220,9 +234,11 @@ func (d *Manage) SendTask(t *Task, result *Result) error {
 	status := NewTasksStatus()
 	// set up task status monitor
 	for _, sp := range t.Plan.SubPlans {
+		glog.Info("add status record", sp.Node.Name, t.ID())
 		status.update(sp.Node.Name, Pending, "")
 	}
 	d.setTaskStatus(t.Plan.UserName, t.ID(), status)
+	glog.Info(status)
 	if err != nil {
 		result.err = err
 		return err
@@ -245,7 +261,7 @@ func (d *Manage) CallUnLock(l *DDLLock, result *Result) {
 
 func (d *Manage) getTasks(key string) {
 	// get master's tasks
-	if !strings.HasPrefix(key, path.Join(meta.DDLInfo, meta.TaskQueue)) {
+	if !strings.HasPrefix(key, path.Join(meta.DDLInfo, meta.Masters)) {
 		return
 	}
 	_, user := path.Split(key)
@@ -296,7 +312,7 @@ func (d *Manage) doTask(t *Task) *Result {
 	}
 	// prepare handle task
 	switch t.Type {
-	case CreatDB:
+	case CreateDB:
 		// check the db
 		isExist, err := d.info.IsDBExist(plan.UserName, plan.DBName)
 		if err != nil {
@@ -304,7 +320,8 @@ func (d *Manage) doTask(t *Task) *Result {
 			return r
 		}
 		if isExist {
-			r.err = fmt.Errorf("database: %v is already exist in user(%v)", plan.DBName, plan.UserName)
+			glog.Infof("database(%v) is already exist in user(%v)", plan.DBName, plan.UserName)
+			r.err = mysql.NewDefaultError(mysql.ER_DB_CREATE_EXISTS, plan.DBName)
 			return r
 		}
 	default:
@@ -318,13 +335,14 @@ func (d *Manage) doTask(t *Task) *Result {
 			r.err = err
 			break
 		} else {
+			r.affectedRows++
 			d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Done, "", status)
 		}
 		// record
+		plan.FinishNodes = append(plan.FinishNodes, sp.SubDatabase)
 		if len(plan.SubPlans) > 1 {
 			plan.SubPlans = plan.SubPlans[1:]
 			data, _ := json.Marshal(t)
-			plan.FinishNodes = append(plan.FinishNodes, sp.Node)
 			d.info.UpdateTask(t.Plan.UserName, t.Seq, string(data))
 		} else {
 			// register result
@@ -338,11 +356,21 @@ func (d *Manage) doTask(t *Task) *Result {
 }
 
 func (d *Manage) executeSubPlan(sp *SubPlan, t *Task) error {
-	db, err := client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, "", 0)
+	var (
+		db  *client.DB
+		err error
+	)
+	if sp.IsDB {
+		db, err = client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, "", 0)
+	} else {
+		db, err = client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, sp.SubDatabase.Name, 0)
+	}
+
 	if err != nil {
 		// TODO: retry, it must success
 		return err
 	}
+	defer db.Close()
 	conn, err := db.GetConn()
 	if err != nil {
 		// TODO: retry, it must success
@@ -351,26 +379,21 @@ func (d *Manage) executeSubPlan(sp *SubPlan, t *Task) error {
 	defer conn.Close()
 	_, err = conn.Execute(sp.SQL)
 	if err != nil {
+		glog.Infof("execute subplan node(%s) sql(%s) error(%v)", sp.Node.Name, sp.SQL, err)
 		return err
 	}
-	db.Close()
+	glog.Infof("execute subplan node(%s) sql(%s) done", sp.Node.Name, sp.SQL)
 	return nil
 }
 
 func (d *Manage) registerTaskResult(t *Task) error {
 	switch t.Type {
-	case CreatDB:
+	case CreateDB:
 		backends := make([]*meta.Backend, 0, len(t.Plan.FinishNodes))
-		for _, node := range t.Plan.FinishNodes {
-			backend := &meta.Backend{
-				Host:       node.Host,
-				Name:       node.Name,
-				UserName:   node.Password,
-				Password:   node.Password,
-				ParentNode: node,
-			}
+		for _, backend := range t.Plan.FinishNodes {
 			backends = append(backends, backend)
 		}
+		glog.Infof("register CreateDB DB(%v), user(%v), seq(%v)", t.Plan.DBName, t.Plan.UserName, t.Seq)
 		return d.info.SaveCreateDatabase(t.Plan.UserName, t.Plan.DBName, t.Seq, backends)
 
 	default:
@@ -382,18 +405,17 @@ func (d *Manage) registerTaskResult(t *Task) error {
 type TasksStatus map[string]*TaskStatus
 
 // NewTasksStatus return a new TasksStatus instance
-func NewTasksStatus() *TasksStatus {
-	t := make(TasksStatus)
-	return &t
+func NewTasksStatus() TasksStatus {
+	return make(TasksStatus)
 }
 
-func (ts *TasksStatus) update(node, status, info string) *TasksStatus {
-	m := (*map[string]*TaskStatus)(ts)
-	if t, ok := (*m)[node]; ok {
+func (ts TasksStatus) update(node, status, info string) TasksStatus {
+	m := (map[string]*TaskStatus)(ts)
+	if t, ok := m[node]; ok {
 		t.Status = status
 		t.Info = info
 	} else {
-		(*m)[node] = &TaskStatus{
+		m[node] = &TaskStatus{
 			Status: status,
 			Info:   info,
 		}
@@ -413,12 +435,12 @@ const (
 	Fail    = "fail"
 )
 
-func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts *TasksStatus) error {
+func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts TasksStatus) error {
 	ts.update(node, status, info)
 	return d.setTaskStatus(uname, id, ts)
 }
 
-func (d *Manage) setTaskStatus(uname, id string, ts *TasksStatus) error {
+func (d *Manage) setTaskStatus(uname, id string, ts TasksStatus) error {
 	data, err := json.Marshal(ts)
 	if err != nil {
 		return err
@@ -427,14 +449,14 @@ func (d *Manage) setTaskStatus(uname, id string, ts *TasksStatus) error {
 }
 
 // GetTaskStatus will get task's status
-func (d *Manage) GetTaskStatus(uname, id string) (*TasksStatus, error) {
+func (d *Manage) GetTaskStatus(uname, id string) (TasksStatus, error) {
 	data, err := d.info.GetTaskStatus(uname, id)
 	if err != nil {
 		return nil, err
 	}
 	t := make(TasksStatus)
-	err = json.Unmarshal(data, t)
-	return &t, err
+	err = json.Unmarshal(data, &t)
+	return t, err
 }
 
 // BecomeMaster is election's callback method
@@ -444,8 +466,9 @@ func (d *Manage) BecomeMaster(key string) {
 
 // Result is the result of rpc
 type Result struct {
-	err  error
-	info []byte
+	err          error
+	info         []byte
+	affectedRows uint64
 }
 
 // DDLLock is a rambo lock

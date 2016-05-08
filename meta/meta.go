@@ -42,7 +42,7 @@ func (m *Info) GetMysqlNodes() ([]*MysqlNode, error) {
 	if err != nil {
 		return nil, err
 	}
-	mns := make([]*MysqlNode, len(resp.Node.Nodes))
+	mns := make([]*MysqlNode, 0, len(resp.Node.Nodes))
 	for _, node := range resp.Node.Nodes {
 		mn := new(MysqlNode)
 		if err = json.Unmarshal([]byte(node.Value), mn); err != nil {
@@ -129,7 +129,7 @@ func (m *Info) ShowDatabases(user string) ([]string, error) {
 	}
 	s := make([]string, 0, len(resp.Node.Nodes))
 	for _, db := range resp.Node.Nodes {
-		s = append(s, db.Value)
+		s = append(s, path.Base(db.Key))
 	}
 	return s, nil
 }

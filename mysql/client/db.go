@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Alienero/Rambo/mysql"
+	"github.com/golang/glog"
 )
 
 // errors
@@ -66,6 +67,7 @@ func Open(addr string, user string, password string, dbName string, maxConnNum i
 	db.checkConn, err = db.newConn()
 	if err != nil {
 		db.Close()
+		glog.Infof("open database(%s) get error(%v)", addr, err)
 		return nil, ErrDatabaseClose
 	}
 
@@ -78,6 +80,7 @@ func Open(addr string, user string, password string, dbName string, maxConnNum i
 			conn, err := db.newConn()
 			if err != nil {
 				db.Close()
+				glog.Infof("open database(%s) get error(%v)", addr, err)
 				return nil, ErrDatabaseClose
 			}
 			conn.pushTimestamp = time.Now().Unix()

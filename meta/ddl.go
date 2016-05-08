@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/golang/glog"
 )
 
 func (d *Info) Lock(key string, id string, seq int64) error {
@@ -28,8 +29,9 @@ func (d *Info) lockPath(key string) string {
 }
 
 // key is user id
-func (d *Info) GetMaster(key string) (master string, err error) {
-	resp, err := d.Get(path.Join(DDLInfo, Masters, key), false, false)
+// one user has one master
+func (d *Info) GetMaster(user string) (master string, err error) {
+	resp, err := d.Get(path.Join(DDLInfo, Masters, user), false, false)
 	if err != nil {
 		if e, ok := err.(etcd.EtcdError); ok {
 			if e.ErrorCode == NotFound {
@@ -51,7 +53,7 @@ func (d *Info) SaveDDLTask(v interface{}, user string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return resp.Node.Key, nil
+	return path.Base(resp.Node.Key), nil
 }
 
 // GetTasks get the user's all tasks
@@ -78,7 +80,10 @@ func (d *Info) SaveCreateDatabase(user, db, tid string, backends []*Backend) err
 			return err
 		}
 	}
-	_, err := d.Delete(path.Join(DDLInfo, TaskQueue, user, tid), true)
+	_, err := d.Delete(path.Join(DDLInfo, user, TaskQueue, tid), true)
+	if err != nil {
+		glog.Info("delete task error", path.Join(DDLInfo, user, TaskQueue, tid))
+	}
 	return err
 }
 
