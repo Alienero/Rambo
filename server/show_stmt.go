@@ -41,6 +41,8 @@ func (sei *session) handleShow(stmt *sqlparser.Show) (*mysql.Resultset, error) {
 			return nil, mysql.NewError(mysql.ER_NO_DB_ERROR, mysql.MySQLErrName[mysql.ER_NO_DB_ERROR])
 		}
 
+	case "variables":
+
 	case "ddl_task":
 		// get tasks
 		// TODO

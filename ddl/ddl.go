@@ -234,11 +234,9 @@ func (d *Manage) SendTask(t *Task, result *Result) error {
 	status := NewTasksStatus()
 	// set up task status monitor
 	for _, sp := range t.Plan.SubPlans {
-		glog.Info("add status record", sp.Node.Name, t.ID())
 		status.update(sp.Node.Name, Pending, "")
 	}
 	d.setTaskStatus(t.Plan.UserName, t.ID(), status)
-	glog.Info(status)
 	if err != nil {
 		result.err = err
 		return err
