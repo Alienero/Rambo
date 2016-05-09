@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"path"
+	"sort"
 
 	"github.com/Alienero/Rambo/mysql"
 
@@ -38,7 +39,7 @@ func (m *Info) GetAllProxyNodes() ([]string, error) {
 
 // GetDBs get all sub backends of specifical dbname
 func (m *Info) GetDBs(user, db string) ([]*Backend, error) {
-	resp, err := m.Get(path.Join(UserInfo, user, DB, db, Backends), true, true)
+	resp, err := m.Get(path.Join(UserInfo, user, DB, db, Backends), false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -50,6 +51,8 @@ func (m *Info) GetDBs(user, db string) ([]*Backend, error) {
 		}
 		backends = append(backends, backend)
 	}
+	// sort
+	sort.Sort(SortBackends(backends))
 	return backends, nil
 }
 
@@ -209,6 +212,7 @@ type Table struct {
 	Scheme       string `json:"scheme"` // default is `hash`
 	PartitionKey *Key   `json:"partition-key"`
 	AutoKeys     []*Key `json:"auto-keys"`
+	ColsLen      int    `json:"col-len"`
 }
 
 const (
@@ -218,17 +222,33 @@ const (
 )
 
 type Key struct {
-	Name string `json:"name"`
-	Type int    `json:"type"`
+	Name  string `json:"name"`
+	Type  int    `json:"type"`
+	Index int    `json:"index"`
 }
 
 // Backend is one of user's backends
 type Backend struct {
+	Seq        int        `json:"seq"`
 	Host       string     `json:"host"`
 	UserName   string     `json:"user-name"`
 	Password   string     `json:"password"`
 	Name       string     `json:"name"` // backend's name
 	ParentNode *MysqlNode `json:"parent"`
+}
+
+type SortBackends []*Backend
+
+func (s SortBackends) Len() int {
+	return len(s)
+}
+
+func (s SortBackends) Less(i, j int) bool {
+	return s[i].Seq < s[j].Seq
+}
+
+func (s SortBackends) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
 }
 
 // MysqlNode is one mysql server.

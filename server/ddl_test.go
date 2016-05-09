@@ -2,21 +2,17 @@ package server
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/pingcap/tidb/ast"
 	"github.com/pingcap/tidb/parser"
-	"testing"
 
 	ftype "github.com/pingcap/tidb/mysql"
 )
 
 func TestDDL(t *testing.T) {
 	sql := `
-	Create table t (
-		id int PRIMARY KEY,
-		b int not null,
-		UNIQUE(b),
-		id int auto_increment
-	)
+	Create table test1 (id int PRIMARY KEY,b int not null,UNIQUE(b),info varchar(100))
 	`
 	stmt, err := parser.ParseOneStmt(sql, "", "")
 	if err != nil {

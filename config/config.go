@@ -22,4 +22,5 @@ type server struct {
 }
 
 type proxy struct {
+	AutoKeyInterval uint64
 }

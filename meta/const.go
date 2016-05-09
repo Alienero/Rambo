@@ -32,6 +32,10 @@ const (
 	Masters    = "/masters"    // k: user id, v: node addr
 	TaskQueue  = "/task_queue" // k: user id, v: ddl excute plan
 	Lock       = "/lock"       // k: user/db/table, v: "lock"
+
+	// auto key
+
+	AutoKey = Perfix + "/auto_key"
 )
 
 // etcd error code

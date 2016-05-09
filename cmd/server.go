@@ -34,6 +34,7 @@ var serverCmd = &cobra.Command{
 		config.Config.Server.ListenAddr = "localhost:3306"
 		config.Config.Etcd.UpdateTTL = 10
 		config.Config.Server.RPCAddr = "localhost:5645"
+		config.Config.Proxy.AutoKeyInterval = 5
 		s := server.NewSever()
 		// listenning
 		go s.Run()

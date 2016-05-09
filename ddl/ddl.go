@@ -155,6 +155,7 @@ func (d *Manage) CreateDatabase(uname, database string, num int) (string, uint64
 			SQL:  createDB,
 			IsDB: true,
 			SubDatabase: &meta.Backend{
+				Seq:        i,
 				UserName:   node.UserName,
 				Password:   node.Password,
 				Host:       node.Host,

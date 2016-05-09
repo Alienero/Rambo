@@ -55,6 +55,7 @@ func (sei *session) handleQuery(data []byte) error {
 		}
 
 	case *sqlparser.Insert:
+		return sei.handleInsert(v)
 
 	case *sqlparser.Update:
 

@@ -46,6 +46,7 @@ func (sei *session) handleDDL(sql string) error {
 			PartitionKey: &meta.Key{
 				Name: sei.partitionKey,
 			},
+			ColsLen: len(v.Cols),
 		}
 
 		existMap := make(map[string]bool)
@@ -60,7 +61,7 @@ func (sei *session) handleDDL(sql string) error {
 				}
 				// get type
 				name := constraint.Keys[0].Column.Name.String()
-				typ := sei.getFieldType(v.Cols, name)
+				index, typ := sei.getFieldType(v.Cols, name)
 				if typ == meta.TypeKeyUnknow {
 					err := mysql.NewError(mysql.ER_SYNTAX_ERROR,
 						"unsupport key's type ")
@@ -71,17 +72,19 @@ func (sei *session) handleDDL(sql string) error {
 					// set primary key for partition key
 					table.PartitionKey.Name = name
 					table.PartitionKey.Type = typ
+					table.PartitionKey.Index = index
 				}
 
 				table.AutoKeys = append(table.AutoKeys, &meta.Key{
-					Name: name,
-					Type: typ,
+					Name:  name,
+					Type:  typ,
+					Index: index,
 				})
 				existMap[name] = true
 			}
 		}
 		// check auto increment
-		for _, col := range v.Cols {
+		for n, col := range v.Cols {
 			for _, option := range col.Options {
 				switch option.Tp {
 				case ast.ColumnOptionAutoIncrement, ast.ColumnOptionPrimaryKey, ast.ColumnOptionUniq:
@@ -95,14 +98,16 @@ func (sei *session) handleDDL(sql string) error {
 					if ast.ColumnOptionPrimaryKey == option.Tp && table.PartitionKey.Name == "" {
 						table.PartitionKey.Name = col.Name.Name.String()
 						table.PartitionKey.Type = t
+						table.PartitionKey.Index = n
 					}
 					// check if exist not append
 					if existMap[col.Name.Name.String()] {
 						continue
 					}
 					table.AutoKeys = append(table.AutoKeys, &meta.Key{
-						Name: col.Name.Name.String(),
-						Type: t,
+						Name:  col.Name.Name.String(),
+						Type:  t,
+						Index: n,
 					})
 				}
 			}
@@ -135,13 +140,13 @@ func (sei *session) handleDDL(sql string) error {
 	}
 }
 
-func (sei *session) getFieldType(cols []*ast.ColumnDef, name string) int {
-	for _, col := range cols {
+func (sei *session) getFieldType(cols []*ast.ColumnDef, name string) (index, typ int) {
+	for n, col := range cols {
 		if col.Name.Name.String() == name {
-			return sei.getOneFeildType(col)
+			return n, sei.getOneFeildType(col)
 		}
 	}
-	return meta.TypeKeyUnknow
+	return 0, meta.TypeKeyUnknow
 }
 
 func (sei *session) getOneFeildType(col *ast.ColumnDef) int {
