@@ -865,6 +865,10 @@ value_expression:
   {
     $$ = &FuncExpr{Name: string($1)}
   }
+| DATABASE openb closeb
+  {
+    $$ = &FuncExpr{Name: "database"}
+  }
 | sql_id openb select_expression_list closeb
   {
     $$ = &FuncExpr{Name: string($1), Exprs: $3}

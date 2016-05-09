@@ -32,10 +32,9 @@ type DDL interface {
 
 // SubPlan is one of ddl's sub plans
 type SubPlan struct {
-	Node        *meta.MysqlNode `json:"node"`
-	SubDatabase *meta.Backend   `json:"backend"`
-	IsDB        bool            `json:"is-db"`
-	SQL         string          `json:"sql"`
+	SubDatabase *meta.Backend `json:"backend"`
+	IsDB        bool          `json:"is-db"`
+	SQL         string        `json:"sql"`
 }
 
 // Plan is ddl execute plan
@@ -160,7 +159,6 @@ func (d *Manage) CreateDatabase(uname, database string, num int) (string, uint64
 				Name:       dbName,
 				ParentNode: node,
 			},
-			Node: node,
 		})
 	}
 	var t = &Task{
@@ -234,7 +232,7 @@ func (d *Manage) SendTask(t *Task, result *Result) error {
 	status := NewTasksStatus()
 	// set up task status monitor
 	for _, sp := range t.Plan.SubPlans {
-		status.update(sp.Node.Name, Pending, "")
+		status.update(sp.SubDatabase.Name, Pending, "", sp)
 	}
 	d.setTaskStatus(t.Plan.UserName, t.ID(), status)
 	if err != nil {
@@ -327,14 +325,14 @@ func (d *Manage) doTask(t *Task) *Result {
 	}
 	// execute task
 	for _, sp := range plan.SubPlans {
-		d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Doing, "", status)
+		d.updateTaskStatus(plan.UserName, plan.ID, sp.SubDatabase.Name, Doing, "", status, sp)
 		if err := d.executeSubPlan(sp, t); err != nil {
-			d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Fail, err.Error(), status)
+			d.updateTaskStatus(plan.UserName, plan.ID, sp.SubDatabase.Name, Fail, err.Error(), status, sp)
 			r.err = err
 			break
 		} else {
 			r.affectedRows++
-			d.updateTaskStatus(plan.UserName, plan.ID, sp.Node.Name, Done, "", status)
+			d.updateTaskStatus(plan.UserName, plan.ID, sp.SubDatabase.Name, Done, "", status, sp)
 		}
 		// record
 		plan.FinishNodes = append(plan.FinishNodes, sp.SubDatabase)
@@ -359,9 +357,9 @@ func (d *Manage) executeSubPlan(sp *SubPlan, t *Task) error {
 		err error
 	)
 	if sp.IsDB {
-		db, err = client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, "", 0)
+		db, err = client.Open(sp.SubDatabase.Host, sp.SubDatabase.UserName, sp.SubDatabase.Password, "", 0)
 	} else {
-		db, err = client.Open(sp.Node.Host, sp.Node.UserName, sp.Node.Password, sp.SubDatabase.Name, 0)
+		db, err = client.Open(sp.SubDatabase.Host, sp.SubDatabase.UserName, sp.SubDatabase.Password, sp.SubDatabase.Name, 0)
 	}
 
 	if err != nil {
@@ -377,10 +375,10 @@ func (d *Manage) executeSubPlan(sp *SubPlan, t *Task) error {
 	defer conn.Close()
 	_, err = conn.Execute(sp.SQL)
 	if err != nil {
-		glog.Infof("execute subplan node(%s) sql(%s) error(%v)", sp.Node.Name, sp.SQL, err)
+		glog.Infof("execute subplan node(%s) sql(%s) error(%v)", sp.SubDatabase.Name, sp.SQL, err)
 		return err
 	}
-	glog.Infof("execute subplan node(%s) sql(%s) done", sp.Node.Name, sp.SQL)
+	glog.Infof("execute subplan node(%s) sql(%s) done", sp.SubDatabase.Name, sp.SQL)
 	return nil
 }
 
@@ -407,23 +405,26 @@ func NewTasksStatus() TasksStatus {
 	return make(TasksStatus)
 }
 
-func (ts TasksStatus) update(node, status, info string) TasksStatus {
+func (ts TasksStatus) update(node, status, info string, subplan *SubPlan) TasksStatus {
 	m := (map[string]*TaskStatus)(ts)
 	if t, ok := m[node]; ok {
 		t.Status = status
 		t.Info = info
+		t.SubPlan = subplan
 	} else {
 		m[node] = &TaskStatus{
-			Status: status,
-			Info:   info,
+			Status:  status,
+			Info:    info,
+			SubPlan: subplan,
 		}
 	}
 	return ts
 }
 
 type TaskStatus struct {
-	Status string `json:"node-status"`
-	Info   string `json:"info"`
+	Status  string   `json:"node-status"`
+	Info    string   `json:"info"`
+	SubPlan *SubPlan `json:"sub-plan"`
 }
 
 const (
@@ -433,8 +434,8 @@ const (
 	Fail    = "fail"
 )
 
-func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts TasksStatus) error {
-	ts.update(node, status, info)
+func (d *Manage) updateTaskStatus(uname, id, node, status, info string, ts TasksStatus, subplan *SubPlan) error {
+	ts.update(node, status, info, subplan)
 	return d.setTaskStatus(uname, id, ts)
 }
 
