@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// CreatDB is the type of the create database plan
+	// CreateDB is the type of the create database plan
 	CreateDB = "CreatDB"
 )
 
