@@ -19,15 +19,17 @@ import (
 
 const (
 	// CreateDB is the type of the create database plan
-	CreateDB = "CreatDB"
+	CreateDB = "CreateDB"
+	// CreateTable is the type of the create table plan
+	CreateTable = "CreateTable"
 )
 
 // DDL is responsible for schema change.
 type DDL interface {
 	CreateDatabase(uname, database string, num int) (id string, rows uint64, err error)
-	CreateTable() (id string, rows uint64, err error)
-	DropTable() (id string, rows uint64, err error)
-	DropDatabase() (id string, rows uint64, err error)
+	CreateTable(user, db, sql string, t *meta.Table) (id string, rows uint64, err error)
+	DropTable(user, db string, t *meta.Table) (id string, rows uint64, err error)
+	DropDatabase(uname, database string) (id string, rows uint64, err error)
 }
 
 // SubPlan is one of ddl's sub plans
@@ -45,7 +47,7 @@ type Plan struct {
 	LockKey     string          `json:"lock-key"`
 	DBName      string          `json:"db-name"`
 	UserName    string          `json:"user-name"`
-	TableName   string          `json:"table-name"`
+	Table       *meta.Table     `json:"table"`
 	FinishNodes []*meta.Backend `json:"finish-nodes"`
 }
 
@@ -146,7 +148,7 @@ func (d *Manage) CreateDatabase(uname, database string, num int) (string, uint64
 	subs := make([]*SubPlan, 0, num)
 	for i := 0; i < num; i++ {
 		dbName := fmt.Sprintf("%s_%s_%s", uname, database, strconv.Itoa(i))
-		createDB := fmt.Sprintf("CREATE DATABASE %s", dbName)
+		createDB := fmt.Sprintf("CREATE DATABASE `%s` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci", dbName)
 		index := i % len(nodes)
 		node := nodes[index]
 		subs = append(subs, &SubPlan{
@@ -206,17 +208,46 @@ func (d *Manage) handleTask(t *Task) (uint64, error) {
 
 // CreateTable get a CreateTable task
 // IMPORTANT: only support hash type yet!!!
-func (d *Manage) CreateTable() (id string, rows uint64, err error) {
-	return
+func (d *Manage) CreateTable(user, db, sql string, table *meta.Table) (id string, rows uint64, err error) {
+	// build create table task
+	// get all subdb
+	var backends []*meta.Backend
+	if backends, err = d.info.GetDBs(user, db); err != nil {
+		glog.Warningf("GetDBs get an error:%v", err)
+	}
+	subs := make([]*SubPlan, 0, len(backends))
+	for _, backend := range backends {
+		subs = append(subs, &SubPlan{
+			SQL:         sql,
+			IsDB:        false,
+			SubDatabase: backend,
+		})
+	}
+	var t = &Task{
+		Plan: &Plan{
+			DBName:      db,
+			UserName:    user,
+			Table:       table,
+			SubPlans:    subs,
+			LockKey:     path.Join(user, db, table.Name),
+			ID:          uuid.Get(),
+			LockVersion: 0,
+		},
+		Type: CreateTable,
+		c:    make(chan *Result, 1),
+	}
+	glog.Infof("DDL: create table task:%v", t)
+	rows, err = d.handleTask(t)
+	return t.Plan.ID, rows, err
 }
 
 // DropTable get a DropTable task
-func (d *Manage) DropTable() (id string, rows uint64, err error) {
+func (d *Manage) DropTable(user, db string, t *meta.Table) (id string, rows uint64, err error) {
 	return
 }
 
 // DropDatabase get a DropDatabase task
-func (d *Manage) DropDatabase() (id string, rows uint64, err error) {
+func (d *Manage) DropDatabase(uname, database string) (id string, rows uint64, err error) {
 	return
 }
 
@@ -320,6 +351,19 @@ func (d *Manage) doTask(t *Task) *Result {
 			r.err = mysql.NewDefaultError(mysql.ER_DB_CREATE_EXISTS, plan.DBName)
 			return r
 		}
+	case CreateTable:
+		// check table
+		isExist, err := d.info.IsTableExist(plan.UserName, plan.DBName, plan.Table.Name)
+		if err != nil {
+			r.err = err
+			return r
+		}
+		if isExist {
+			glog.Infof("table(%v) is already exist in user(%v) database(%v)", plan.Table, plan.UserName, plan.DBName)
+			r.err = mysql.NewDefaultError(mysql.ER_DB_CREATE_EXISTS, plan.DBName)
+			return r
+		}
+
 	default:
 		r.err = fmt.Errorf("not support task's type:%v", t.Type)
 	}
@@ -391,6 +435,11 @@ func (d *Manage) registerTaskResult(t *Task) error {
 		}
 		glog.Infof("register CreateDB DB(%v), user(%v), seq(%v)", t.Plan.DBName, t.Plan.UserName, t.Seq)
 		return d.info.SaveCreateDatabase(t.Plan.UserName, t.Plan.DBName, t.Seq, backends)
+
+	case CreateTable:
+		glog.Infof("register CreateTable DB(%v), Table(%v), user(%v), seq(%v)", t.Plan.DBName,
+			t.Plan.Table.Name, t.Plan.UserName, t.Seq)
+		return d.info.SaveCreateTable(t.Plan.UserName, t.Plan.DBName, t.Seq, t.Plan.Table)
 
 	default:
 		return fmt.Errorf("not support task's type:%v", t.Type)

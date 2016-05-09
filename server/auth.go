@@ -88,14 +88,7 @@ func (sei *session) readHandshakeResponse() error {
 	// user and password check.
 	if !sei.server.info.CheckUser(sei.user, auth, sei.salt, sei.db) {
 		glog.Infof("User(%v) password or user name error", sei.user)
-		return mysql.NewDefaultError(mysql.ER_ACCESS_DENIED_ERROR)
-	}
-
-	// user db.
-	if sei.db != "" {
-		// if err := c.useDB(db); err != nil {
-		// 	return err
-		// }
+		return mysql.NewDefaultError(mysql.ER_ACCESS_DENIED_ERROR, sei.user, "", "YES")
 	}
 
 	return nil

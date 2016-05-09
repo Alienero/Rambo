@@ -87,6 +87,13 @@ func (d *Info) SaveCreateDatabase(user, db, tid string, backends []*Backend) err
 	return err
 }
 
+// SaveCreateTable save table info into etcd
+func (d *Info) SaveCreateTable(user, db, tid string, table *Table) error {
+	data, _ := json.Marshal(table)
+	_, err := d.Create(path.Join(UserInfo, user, DB, db, Tables, table.Name), string(data), 0)
+	return err
+}
+
 // SetTaskStatus set task's status
 func (d *Info) SetTaskStatus(user, id string, data []byte) error {
 	_, err := d.Set(path.Join(DDLInfo, user, TaskStatus, id), string(data), 0)

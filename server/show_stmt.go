@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Alienero/Rambo/mysql"
@@ -19,7 +20,7 @@ func (sei *session) handleShow(stmt *sqlparser.Show) (*mysql.Resultset, error) {
 	switch strings.ToLower(stmt.Key) {
 	case "databases":
 		name = append(name, "Database")
-		// get databases from etcd
+		// get databases/tables from etcd
 		var dbs []string
 		dbs, err = sei.server.info.ShowDatabases(sei.user)
 		if err != nil {
@@ -40,6 +41,25 @@ func (sei *session) handleShow(stmt *sqlparser.Show) (*mysql.Resultset, error) {
 		if sei.db == "" {
 			return nil, mysql.NewError(mysql.ER_NO_DB_ERROR, mysql.MySQLErrName[mysql.ER_NO_DB_ERROR])
 		}
+		// get talbbes
+		name = append(name, fmt.Sprintf("Tables_in_%s", sei.db))
+		// get databases from etcd
+		var dbs []string
+		dbs, err = sei.server.info.ShowTables(sei.user, sei.db)
+		if err != nil {
+			return nil, err
+		}
+		if len(dbs) > 0 {
+			values = make([][]interface{}, 0, len(dbs))
+		} else {
+			glog.Info("empty tables")
+			r, err = sei.buildEmptySet(name, []interface{}{""})
+			break
+		}
+		for _, db := range dbs {
+			values = append(values, []interface{}{db})
+		}
+		r, err = sei.buildResultset(nil, name, values)
 
 	case "variables":
 

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"runtime"
@@ -31,7 +32,8 @@ type session struct {
 	password   string // backend psw
 
 	// system's args
-	dbnum int
+	dbnum        int
+	partitionKey string
 }
 
 func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {
@@ -113,6 +115,7 @@ func (sei *session) serve() {
 
 func (sei *session) dispatch(data []byte) error {
 	cmd := data[0]
+	glog.Infof("cmd type: %v", cmd)
 	data = data[1:]
 
 	switch cmd {
@@ -125,7 +128,13 @@ func (sei *session) dispatch(data []byte) error {
 	case mysql.COM_PING:
 		return sei.writeOK(nil)
 	case mysql.COM_INIT_DB:
+		return sei.useDB(string(data))
 	case mysql.COM_FIELD_LIST:
+		// get the column definitions of a table
+		index := bytes.IndexByte(data, 0x00)
+		table := string(data[0:index])
+		wildcard := string(data[index+1:])
+		glog.Info(table, "    ", wildcard)
 	case mysql.COM_STMT_PREPARE:
 	case mysql.COM_STMT_EXECUTE:
 	case mysql.COM_STMT_CLOSE:

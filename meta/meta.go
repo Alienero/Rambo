@@ -36,6 +36,23 @@ func (m *Info) GetAllProxyNodes() ([]string, error) {
 	return result, nil
 }
 
+// GetDBs get all sub backends of specifical dbname
+func (m *Info) GetDBs(user, db string) ([]*Backend, error) {
+	resp, err := m.Get(path.Join(UserInfo, user, DB, db, Backends), true, true)
+	if err != nil {
+		return nil, err
+	}
+	backends := make([]*Backend, 0, len(resp.Node.Nodes))
+	for _, node := range resp.Node.Nodes {
+		backend := new(Backend)
+		if err = json.Unmarshal([]byte(node.Value), backend); err != nil {
+			return nil, err
+		}
+		backends = append(backends, backend)
+	}
+	return backends, nil
+}
+
 // GetMysqlNodes get all mysql backend nodes
 func (m *Info) GetMysqlNodes() ([]*MysqlNode, error) {
 	resp, err := m.Get(MysqlInfo, true, true)
@@ -67,7 +84,15 @@ func (m *Info) AddBDatabase(db *Database) error {
 }
 
 func (m *Info) IsDBExist(user, db string) (bool, error) {
-	_, err := m.Get(path.Join(UserInfo, user, DB, db), false, false)
+	return m.isExist(path.Join(UserInfo, user, DB, db))
+}
+
+func (m *Info) IsTableExist(user, db, table string) (bool, error) {
+	return m.isExist(path.Join(UserInfo, user, DB, db, Tables, table))
+}
+
+func (m *Info) isExist(key string) (bool, error) {
+	_, err := m.Get(key, false, false)
 	if err != nil {
 		if e, ok := err.(*etcd.EtcdError); ok {
 			if e.ErrorCode == NotFound {
@@ -90,7 +115,7 @@ func (m *Info) CheckUser(user string, auth []byte, salt []byte, db string) bool 
 		return false
 	}
 	if db != "" {
-		_, err = m.Get(UserInfo+"/"+user+DB+db, false, false)
+		_, err = m.Get(path.Join(UserInfo, user, DB, db), false, false)
 		if err != nil {
 			glog.Infof("Can not get Etcd user db error:%v", err)
 			return false
@@ -118,7 +143,15 @@ func (m *Info) getPassword(user string) (string, error) {
 }
 
 func (m *Info) ShowDatabases(user string) ([]string, error) {
-	resp, err := m.Get(path.Join(UserInfo, user, DB), true, true)
+	return m.showGet(path.Join(UserInfo, user, DB))
+}
+
+func (m *Info) ShowTables(user, db string) ([]string, error) {
+	return m.showGet(path.Join(UserInfo, user, DB, db, Tables))
+}
+
+func (m *Info) showGet(key string) ([]string, error) {
+	resp, err := m.Get(key, true, true)
 	if err != nil {
 		if e, ok := err.(*etcd.EtcdError); ok {
 			if e.ErrorCode == NotFound {
@@ -132,10 +165,6 @@ func (m *Info) ShowDatabases(user string) ([]string, error) {
 		s = append(s, path.Base(db.Key))
 	}
 	return s, nil
-}
-
-func (m *Info) ShowTables(user, db string) ([]string, error) {
-	return nil, nil
 }
 
 // scheme include : special fied, shard scheme, shard key
@@ -168,14 +197,19 @@ func (m *Info) ShowTables(user, db string) ([]string, error) {
 type Table struct {
 	Name         string `json:"name"`
 	Scheme       string `json:"scheme"` // default is `hash`
-	PartitionKey Key    `json:"partition-key"`
-	AutoKeys     []Key  `json:"auto-keys"`
+	PartitionKey *Key   `json:"partition-key"`
+	AutoKeys     []*Key `json:"auto-keys"`
 }
 
+const (
+	TypeKeyInt = iota
+	TypeKeyString
+	TypeKeyUnknow
+)
+
 type Key struct {
-	Name   string `json:"name"`
-	Type   string `json:"type"`
-	Length int    `json:"length"`
+	Name string `json:"name"`
+	Type int    `json:"type"`
 }
 
 // Backend is one of user's backends

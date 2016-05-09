@@ -15,8 +15,7 @@ func (sei *session) handleQuery(data []byte) error {
 	stmt, err := sqlparser.Parse(sql)
 	if err != nil {
 		glog.Infof("parse sql(%s) error:%v", sql, err)
-		sei.writeError(mysql.NewDefaultError(mysql.ER_SYNTAX_ERROR))
-		return err
+		return sei.writeError(mysql.NewDefaultError(mysql.ER_SYNTAX_ERROR))
 	}
 	switch v := stmt.(type) {
 	case *sqlparser.Explain:
@@ -39,7 +38,7 @@ func (sei *session) handleQuery(data []byte) error {
 								}
 							} else {
 								values = [][]interface{}{
-									[]interface{}{"NULL"},
+									[]interface{}{sei.db},
 								}
 							}
 							r, err := sei.buildResultset(nil, name, values)
@@ -77,6 +76,9 @@ func (sei *session) handleQuery(data []byte) error {
 			return nil
 		}
 		return sei.writeResultset(sei.status, r)
+
+	case *sqlparser.UseDB:
+		return sei.handleUseDB(v)
 
 	default:
 		return fmt.Errorf("statement %T not support now", stmt)
