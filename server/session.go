@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"net"
 	"runtime"
@@ -125,16 +124,16 @@ func (sei *session) dispatch(data []byte) error {
 		// TODO: test stmt,should rm.
 		fmt.Println(cmd, string(data))
 		return sei.handleQuery(data)
+
 	case mysql.COM_PING:
 		return sei.writeOK(nil)
+
 	case mysql.COM_INIT_DB:
 		return sei.useDB(string(data))
+
 	case mysql.COM_FIELD_LIST:
-		// get the column definitions of a table
-		index := bytes.IndexByte(data, 0x00)
-		table := string(data[0:index])
-		wildcard := string(data[index+1:])
-		glog.Info(table, "    ", wildcard)
+		return sei.handleFieldList(data)
+
 	case mysql.COM_STMT_PREPARE:
 	case mysql.COM_STMT_EXECUTE:
 	case mysql.COM_STMT_CLOSE:
@@ -151,4 +150,12 @@ func (sei *session) dispatch(data []byte) error {
 
 func (sei *session) ddlManage() *ddl.Manage {
 	return sei.server.ddlManage
+}
+
+func (sei *session) getMeta() *MetaCache {
+	return sei.server.metaCahe
+}
+
+func (sei *session) getBpool() *Bpool {
+	return sei.server.bpool
 }

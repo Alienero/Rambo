@@ -18,6 +18,9 @@ type Server struct {
 	sessions  *safemap.Map
 	info      *meta.Info
 	ddlManage *ddl.Manage
+
+	bpool    *Bpool
+	metaCahe *MetaCache
 }
 
 func NewSever() *Server {
@@ -27,6 +30,8 @@ func NewSever() *Server {
 		addr:      config.Config.Server.ListenAddr,
 		info:      info,
 		ddlManage: ddl.NewManage(config.Config.Etcd.EtcdAddr, config.Config.Server.RPCAddr, info),
+		bpool:     NewBpool(),
+		metaCahe:  NewMetaCache(info),
 	}
 }
 

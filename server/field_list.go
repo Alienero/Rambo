@@ -1,50 +1,51 @@
 package server
 
-// func (c *Conn) handleFieldList(data []byte) error {
-// 	index := bytes.IndexByte(data, 0x00)
-// 	table := string(data[0:index])
-// 	wildcard := string(data[index+1:])
+import (
+	"bytes"
 
-// 	if c.schema == nil {
-// 		return NewDefaultError(ER_NO_DB_ERROR)
-// 	}
+	"github.com/Alienero/Rambo/mysql"
+)
 
-// 	nodeName := c.schema.rule.GetRule(table).Nodes[0]
+func (sei *session) handleFieldList(data []byte) error {
+	index := bytes.IndexByte(data, 0x00)
+	table := string(data[0:index])
+	wildcard := string(data[index+1:])
 
-// 	n := c.server.getNode(nodeName)
+	if sei.db == "" {
+		return mysql.NewDefaultError(mysql.ER_NO_DB_ERROR)
+	}
 
-// 	co, err := n.getMasterConn()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	defer co.Close()
+	tableInfo, err := sei.getMeta().GetTable(sei.user, sei.db, table)
+	if err != nil {
+		return err
+	}
 
-// 	if err = co.UseDB(c.schema.db); err != nil {
-// 		return err
-// 	}
+	co, err := sei.getBpool().GetConn(tableInfo.Backends[0])
+	if err != nil {
+		return err
+	}
+	defer sei.getBpool().PushConn(tableInfo.Backends[0], co, err)
+	fs, err := co.FieldList(table, wildcard)
+	if err != nil {
+		return err
+	}
+	return sei.writeFieldList(sei.status, fs)
+}
 
-// 	if fs, err := co.FieldList(table, wildcard); err != nil {
-// 		return err
-// 	} else {
-// 		return c.writeFieldList(c.status, fs)
-// 	}
-// }
+func (sei *session) writeFieldList(status uint16, fs []*mysql.Field) error {
 
-// func (c *Conn) writeFieldList(status uint16, fs []*Field) error {
-// 	c.affectedRows = int64(-1)
+	data := make([]byte, 4, 1024)
 
-// 	data := make([]byte, 4, 1024)
+	for _, v := range fs {
+		data = data[0:4]
+		data = append(data, v.Dump()...)
+		if err := sei.pkg.WritePacket(data); err != nil {
+			return err
+		}
+	}
 
-// 	for _, v := range fs {
-// 		data = data[0:4]
-// 		data = append(data, v.Dump()...)
-// 		if err := c.writePacket(data); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	if err := c.writeEOF(status); err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }
+	if err := sei.writeEOF(status); err != nil {
+		return err
+	}
+	return nil
+}

@@ -167,6 +167,16 @@ func (m *Info) showGet(key string) ([]string, error) {
 	return s, nil
 }
 
+func (m *Info) GetTable(user, db, table string) (*Table, error) {
+	resp, err := m.Get(path.Join(UserInfo, user, DB, db, Tables, table), false, false)
+	if err != nil {
+		return nil, err
+	}
+	t := new(Table)
+	err = json.Unmarshal([]byte(resp.Node.Value), t)
+	return t, err
+}
+
 // scheme include : special fied, shard scheme, shard key
 // TODO: we should cache the information.
 // func (m *metaDB) GetSchemeTables(user string, db string, table string) (string, []string, error) {
