@@ -33,6 +33,7 @@ type session struct {
 	// system's args
 	dbnum        int
 	partitionKey string
+	lastInsertId int64
 }
 
 func newSession(rw net.Conn, id uint32, server *Server) (*session, error) {

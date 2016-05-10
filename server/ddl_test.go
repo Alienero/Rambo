@@ -12,7 +12,7 @@ import (
 
 func TestDDL(t *testing.T) {
 	sql := `
-	Create table test1 (id int PRIMARY KEY,b int not null,UNIQUE(b),info varchar(100))
+	Create table test2 (id int PRIMARY KEY AUTO_INCREMENT,b int not null,UNIQUE(b),info varchar(100))
 	`
 	stmt, err := parser.ParseOneStmt(sql, "", "")
 	if err != nil {

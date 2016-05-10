@@ -84,17 +84,16 @@ func (sei *session) handleDDL(sql string) error {
 			}
 		}
 		// check auto increment
-		for n, col := range v.Cols {
-			for _, option := range col.Options {
+		for _, col := range v.Cols {
+			for n, option := range col.Options {
+				t := sei.getOneFeildType(col)
+				if t == meta.TypeKeyUnknow {
+					err := mysql.NewError(mysql.ER_SYNTAX_ERROR,
+						"unsupport key's type ")
+					return sei.writeError(err)
+				}
 				switch option.Tp {
 				case ast.ColumnOptionAutoIncrement, ast.ColumnOptionPrimaryKey, ast.ColumnOptionUniq:
-					t := sei.getOneFeildType(col)
-					if t == meta.TypeKeyUnknow {
-						err := mysql.NewError(mysql.ER_SYNTAX_ERROR,
-							"unsupport key's type ")
-						return sei.writeError(err)
-					}
-
 					if ast.ColumnOptionPrimaryKey == option.Tp && table.PartitionKey.Name == "" {
 						table.PartitionKey.Name = col.Name.Name.String()
 						table.PartitionKey.Type = t
@@ -105,6 +104,16 @@ func (sei *session) handleDDL(sql string) error {
 						continue
 					}
 					table.AutoKeys = append(table.AutoKeys, &meta.Key{
+						Name:  col.Name.Name.String(),
+						Type:  t,
+						Index: n,
+					})
+					existMap[col.Name.Name.String()] = true
+				}
+				if option.Tp == ast.ColumnOptionAutoIncrement {
+					glog.Infof("record auto increment option index(%v)", n)
+					// record
+					table.AutoIns = append(table.AutoIns, &meta.Key{
 						Name:  col.Name.Name.String(),
 						Type:  t,
 						Index: n,
@@ -120,7 +129,6 @@ func (sei *session) handleDDL(sql string) error {
 		}
 		data, _ := json.MarshalIndent(table, "", "\t")
 		glog.Info("table is\n", string(data))
-
 		id, rows, err := sei.ddlManage().CreateTable(sei.user, sei.db, sql, table)
 		glog.Infof("DDL plan id(%v)", id)
 		if err != nil {

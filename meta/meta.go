@@ -213,6 +213,7 @@ type Table struct {
 	PartitionKey *Key   `json:"partition-key"`
 	AutoKeys     []*Key `json:"auto-keys"`
 	ColsLen      int    `json:"col-len"`
+	AutoIns      []*Key `json:"auto-ins"`
 }
 
 const (

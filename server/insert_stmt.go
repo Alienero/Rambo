@@ -1,6 +1,9 @@
 package server
 
 import (
+	"sort"
+	"strconv"
+
 	"github.com/Alienero/Rambo/config"
 	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/mysql"
@@ -145,14 +148,83 @@ func (sei *session) handleInsert(stmt *sqlparser.Insert) error {
 			sqls[index] = append(s.(sqlparser.Values), values[row])
 		}
 	}
+
+	var lastIDs []uint64
+	if len(table.Table.AutoIns) > 0 {
+		index := 0
+		if isNoCol {
+			// range column
+			index = table.Table.AutoIns[0].Index
+		} else {
+			// get index
+			index = sort.Search(len(stmt.Columns), func(i int) bool {
+				return string(stmt.Columns[i].(*sqlparser.NonStarExpr).Expr.(*sqlparser.ColName).Name) ==
+					table.Table.AutoIns[0].Name
+			})
+		}
+		lastIDs = make([]uint64, len(sqls))
+		n := 0
+		for _, sql := range sqls {
+			switch v := sql.(sqlparser.Values)[0].(sqlparser.ValTuple)[index].(type) {
+			case sqlparser.NumVal:
+				glog.Info(n, len(lastIDs))
+				lastIDs[n], _ = strconv.ParseUint(string(v), 10, 64)
+			case sqlparser.StrVal:
+				lastIDs[n], _ = strconv.ParseUint(string(v), 10, 64)
+			}
+			n++
+		}
+	}
 	// print sqls
 	buf := sqlparser.NewTrackedBuffer(nil)
-	for n, v := range sqls {
+	results := make([]*mysql.Result, len(sqls))
+
+	n := 0
+	for k, v := range sqls {
 		stmt.Rows = v
 		stmt.Format(buf)
-		glog.Infof("partition:%d sql is:%s,backend:%v", n, buf.String())
+		// get backends conns
+		conn, err := sei.getBpool().GetConn(table.Backends[k])
+		if err != nil {
+			glog.Warningf("Get partition conn error:%v", err)
+			return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
+		}
+		// execute
+		sql := buf.String()
+		glog.Infof("sql is:%s", sql)
+		results[n], err = conn.Execute(sql)
+		sei.getBpool().PushConn(table.Backends[k], conn, err)
+		if err != nil {
+			glog.Warningf("Get partition conn execute error:%v", err)
+			return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
+		}
+		if len(table.Table.AutoIns) > 0 {
+			results[n].InsertId = lastIDs[n]
+		}
 		buf.Reset()
+		n++
 	}
-	sei.writeOK(nil)
-	return nil
+	// merge results
+	return sei.mergeExecResult(results)
+}
+
+func (sei *session) mergeExecResult(rs []*mysql.Result) error {
+	r := new(mysql.Result)
+	for _, v := range rs {
+		r.Status |= v.Status
+		r.AffectedRows += v.AffectedRows
+		if r.InsertId == 0 {
+			r.InsertId = v.InsertId
+		} else if r.InsertId > v.InsertId {
+			// last insert id is first gen id for multi row inserted
+			// see http://dev.mysql.com/doc/refman/5.6/en/information-functions.html#function_last-insert-id
+			r.InsertId = v.InsertId
+		}
+	}
+
+	if r.InsertId > 0 {
+		sei.lastInsertId = int64(r.InsertId)
+	}
+	glog.Infof("last insert id:%d", r.InsertId)
+	return sei.writeOK(r)
 }
