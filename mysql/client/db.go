@@ -23,9 +23,9 @@ const (
 	ManualDown
 	Unknown
 
-	InitConnCount           = 16
+	InitConnCount           = 1
 	DefaultMaxConnNum       = 1024
-	PingPeroid        int64 = 4
+	PingPeroid        int64 = 8
 )
 
 type DB struct {

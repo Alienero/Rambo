@@ -21,38 +21,7 @@ func (sei *session) handleQuery(data []byte) error {
 	case *sqlparser.Explain:
 
 	case *sqlparser.Select:
-		if (v.From) == nil {
-			switch expr := v.SelectExprs[0].(type) {
-			case *sqlparser.NonStarExpr:
-				switch f := expr.Expr.(type) {
-				case *sqlparser.FuncExpr:
-					switch f.Name {
-					case "database":
-						if f.Exprs == nil {
-							// get now database
-							name := []string{"DATABASE()"}
-							var values [][]interface{}
-							if sei.db == "" {
-								values = [][]interface{}{
-									[]interface{}{"NULL"},
-								}
-							} else {
-								values = [][]interface{}{
-									[]interface{}{sei.db},
-								}
-							}
-							r, err := sei.buildResultset(nil, name, values)
-							if err != nil {
-								return err
-							}
-							return sei.writeResultset(sei.status, r)
-						}
-					}
-				}
-			case *sqlparser.StarExpr:
-
-			}
-		}
+		return sei.handleSelect(v)
 
 	case *sqlparser.Insert:
 		return sei.handleInsert(v)
