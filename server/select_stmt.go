@@ -23,6 +23,7 @@ func (sei *session) handleSelect(stmt *sqlparser.Select) error {
 	if len(stmt.From) > 1 {
 		return sei.writeError(mysql.NewDefaultError(mysql.ER_SYNTAX_ERROR))
 	}
+
 	plan, err := sei.buildPlan(stmt)
 	if err != nil {
 		return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
@@ -31,11 +32,13 @@ func (sei *session) handleSelect(stmt *sqlparser.Select) error {
 	if err != nil {
 		return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
 	}
+
+	offset, count := plan.getOffetCount()
 	// merge select rs
-	return sei.mergeSelectResult(rs, stmt)
+	return sei.mergeSelectResult(rs, stmt, offset, count)
 }
 
-func (sei *session) mergeSelectResult(rs []*mysql.Result, stmt *sqlparser.Select) error {
+func (sei *session) mergeSelectResult(rs []*mysql.Result, stmt *sqlparser.Select, offset, count int64) error {
 	var r *mysql.Result
 	var err error
 
@@ -50,12 +53,16 @@ func (sei *session) mergeSelectResult(rs []*mysql.Result, stmt *sqlparser.Select
 		return errors.New("not support")
 	}
 
+	// sort set
 	err = sei.sortResultSet(r.Resultset, stmt)
 	if err != nil {
 		return err
 	}
 
-	// TODO: limit result
+	// limit set
+	if stmt.Limit != nil {
+		sei.limitSelectResult(r.Resultset, count, offset)
+	}
 
 	sei.status = r.Status
 
@@ -339,4 +346,13 @@ func (sei *session) funcCompare(rs []*mysql.Result, index int, f func(v interfac
 		}
 	}
 	return value, nil
+}
+
+func (sei *session) limitSelectResult(r *mysql.Resultset, count, offset int64) {
+	// rewrite count, remove bad index range
+	if offset+count > int64(len(r.Values)) {
+		count = int64(len(r.Values)) - offset
+	}
+	r.Values = r.Values[offset : offset+count]
+	r.RowDatas = r.RowDatas[offset : offset+count]
 }

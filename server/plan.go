@@ -2,6 +2,8 @@ package server
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/mysql"
@@ -12,6 +14,9 @@ import (
 type Plan struct {
 	SQLs  []*SQL
 	Table *Table
+
+	offset int64
+	count  int64
 }
 
 type SQL struct {
@@ -40,6 +45,52 @@ func (p *Plan) generateSQL(statement sqlparser.Statement) error {
 		// return sei.buildDeletePlan(stmt)
 	}
 	return nil
+}
+
+// limit
+func (plan *Plan) rewriteLimit(stmt *sqlparser.Select) (err error) {
+
+	origin := stmt.Limit
+	// get offset and count
+	if origin == nil {
+		return
+	}
+
+	var offset, count int64
+
+	if origin.Offset == nil {
+		offset = 0
+	} else {
+		o, ok := origin.Offset.(sqlparser.NumVal)
+		if !ok {
+			err = fmt.Errorf("invalid select limit %s", sqlparser.String(stmt.Limit))
+			return
+		}
+		if offset, err = strconv.ParseInt(string([]byte(o)), 10, 64); err != nil {
+			return
+		}
+	}
+
+	o, ok := origin.Rowcount.(sqlparser.NumVal)
+	if !ok {
+		err = fmt.Errorf("invalid limit %s", sqlparser.String(stmt.Limit))
+		return
+	}
+	if count, err = strconv.ParseInt(string([]byte(o)), 10, 64); err != nil {
+		return
+	}
+	if count < 0 {
+		err = fmt.Errorf("invalid limit %s", sqlparser.String(stmt.Limit))
+		return
+	}
+
+	// rewrite limit stmt
+	stmt.Limit.Offset = sqlparser.NumVal([]byte("0"))
+	stmt.Limit.Rowcount = sqlparser.NumVal([]byte(strconv.FormatInt(count+offset, 10)))
+
+	plan.offset = offset
+	plan.count = count
+	return
 }
 
 //build a router plan
@@ -82,12 +133,22 @@ func (sei *session) buildSelectPlan(stmt *sqlparser.Select) (*Plan, error) {
 	}
 	plan.Table = t
 
-	//generate sql
+	// rewrite limit
+	err = plan.rewriteLimit(stmt)
+	if err != nil {
+		return nil, err
+	}
+
+	// generate sql
 	err = plan.generateSQL(stmt)
 	if err != nil {
 		return nil, err
 	}
 	return plan, nil
+}
+
+func (p *Plan) getOffetCount() (int64, int64) {
+	return p.offset, p.count
 }
 
 func (sei *session) executePlan(plan *Plan) ([]*mysql.Result, error) {
