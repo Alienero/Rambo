@@ -27,8 +27,10 @@ func (sei *session) handleQuery(data []byte) error {
 		return sei.handleInsert(v)
 
 	case *sqlparser.Update:
+		return sei.handleUpdate(v)
 
 	case *sqlparser.Delete:
+		return sei.handleDelete(v)
 
 	case *sqlparser.Set:
 		// only support like `SET autocommit=1`
@@ -54,4 +56,17 @@ func (sei *session) handleQuery(data []byte) error {
 		return fmt.Errorf("statement %T not support now", stmt)
 	}
 	return nil
+}
+
+func (sei *session) handleNormalExecute(stmt sqlparser.Statement) error {
+	plan, err := sei.buildPlan(stmt)
+	if err != nil {
+		return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
+	}
+	rs, err := sei.executePlan(plan)
+	if err != nil {
+		return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
+	}
+	// merge results
+	return sei.mergeExecResult(rs)
 }

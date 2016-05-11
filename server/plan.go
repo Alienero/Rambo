@@ -28,28 +28,38 @@ func (p *Plan) generateSQL(statement sqlparser.Statement) error {
 	switch stmt := statement.(type) {
 	case *sqlparser.Insert:
 		// return sei.buildInsertPlan(stmt)
+		return nil
+
 	case *sqlparser.Select:
-		buf := sqlparser.NewTrackedBuffer(nil)
-		stmt.Format(buf)
-		sql := buf.String()
-		glog.Infof("generate select SQL:%s", sql)
-		for _, backend := range p.Table.Backends {
-			p.SQLs = append(p.SQLs, &SQL{
-				Backend: backend,
-				SQL:     []string{sql},
-			})
-		}
+		p.generateSQLALL(stmt)
+
 	case *sqlparser.Update:
-		// return sei.buildUpdatePlan(stmt)
+		p.generateSQLALL(stmt)
+
 	case *sqlparser.Delete:
-		// return sei.buildDeletePlan(stmt)
+		p.generateSQLALL(stmt)
+
+	default:
+		return errors.New("not support plan")
 	}
 	return nil
 }
 
-// limit
-func (plan *Plan) rewriteLimit(stmt *sqlparser.Select) (err error) {
+func (p *Plan) generateSQLALL(stmt sqlparser.Statement) {
+	buf := sqlparser.NewTrackedBuffer(nil)
+	stmt.Format(buf)
+	sql := buf.String()
+	glog.Infof("generate select SQL:%s", sql)
+	for _, backend := range p.Table.Backends {
+		p.SQLs = append(p.SQLs, &SQL{
+			Backend: backend,
+			SQL:     []string{sql},
+		})
+	}
+}
 
+// limit
+func (p *Plan) rewriteLimit(stmt *sqlparser.Select) (err error) {
 	origin := stmt.Limit
 	// get offset and count
 	if origin == nil {
@@ -88,8 +98,8 @@ func (plan *Plan) rewriteLimit(stmt *sqlparser.Select) (err error) {
 	stmt.Limit.Offset = sqlparser.NumVal([]byte("0"))
 	stmt.Limit.Rowcount = sqlparser.NumVal([]byte(strconv.FormatInt(count+offset, 10)))
 
-	plan.offset = offset
-	plan.count = count
+	p.offset = offset
+	p.count = count
 	return
 }
 
@@ -101,11 +111,11 @@ func (sei *session) buildPlan(statement sqlparser.Statement) (*Plan, error) {
 	case *sqlparser.Select:
 		return sei.buildSelectPlan(stmt)
 	case *sqlparser.Update:
-		// return sei.buildUpdatePlan(stmt)
+		return sei.buildUpdatePlan(stmt)
 	case *sqlparser.Delete:
-		// return sei.buildDeletePlan(stmt)
+		return sei.buildDelPlan(stmt)
 	}
-	return nil, errors.New("not support this plan")
+	return nil, errors.New("not support plan")
 }
 
 func (sei *session) buildSelectPlan(stmt *sqlparser.Select) (*Plan, error) {
@@ -138,6 +148,44 @@ func (sei *session) buildSelectPlan(stmt *sqlparser.Select) (*Plan, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// generate sql
+	err = plan.generateSQL(stmt)
+	if err != nil {
+		return nil, err
+	}
+	return plan, nil
+}
+
+func (sei *session) buildDelPlan(stmt *sqlparser.Delete) (*Plan, error) {
+	plan := &Plan{}
+	var err error
+	var tableName = sqlparser.String(stmt.Table)
+	// get tableName
+	t, err := sei.getMeta().GetTable(sei.user, sei.db, tableName)
+	if err != nil {
+		return nil, err
+	}
+	plan.Table = t
+
+	// generate sql
+	err = plan.generateSQL(stmt)
+	if err != nil {
+		return nil, err
+	}
+	return plan, nil
+}
+
+func (sei *session) buildUpdatePlan(stmt *sqlparser.Update) (*Plan, error) {
+	plan := &Plan{}
+	var err error
+	var tableName = sqlparser.String(stmt.Table)
+	// get tableName
+	t, err := sei.getMeta().GetTable(sei.user, sei.db, tableName)
+	if err != nil {
+		return nil, err
+	}
+	plan.Table = t
 
 	// generate sql
 	err = plan.generateSQL(stmt)

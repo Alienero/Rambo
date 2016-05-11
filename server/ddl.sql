@@ -1,0 +1,1 @@
+Create table test5 (id int PRIMARY KEY AUTO_INCREMENT,b int not null,UNIQUE(b),info varchar(100),c int,  cc bigint(64) unsigned );
