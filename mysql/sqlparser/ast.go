@@ -62,7 +62,7 @@ func GenerateParsedQuery(node SQLNode) *ParsedQuery {
 
 // Explain represents a EXPALAIN statement.
 type Explain struct {
-	SQL SQLNode
+	SQL Statement
 }
 
 // Format formats the node.

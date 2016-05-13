@@ -19,6 +19,7 @@ func (sei *session) handleQuery(data []byte) error {
 	}
 	switch v := stmt.(type) {
 	case *sqlparser.Explain:
+		return sei.handleExplain(v)
 
 	case *sqlparser.Select:
 		return sei.handleSelect(v)
@@ -59,9 +60,13 @@ func (sei *session) handleQuery(data []byte) error {
 }
 
 func (sei *session) handleNormalExecute(stmt sqlparser.Statement) error {
+	if sei.db == "" {
+		return sei.writeError(mysql.NewDefaultError(mysql.ER_NO_DB_ERROR))
+	}
+
 	plan, err := sei.buildPlan(stmt)
 	if err != nil {
-		return sei.writeError(mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error()))
+		return sei.writeError(err)
 	}
 	rs, err := sei.executePlan(plan)
 	if err != nil {

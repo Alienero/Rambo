@@ -3,11 +3,14 @@ package server
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 
+	"github.com/Alienero/Rambo/config"
 	"github.com/Alienero/Rambo/meta"
 	"github.com/Alienero/Rambo/mysql"
 	"github.com/Alienero/Rambo/mysql/sqlparser"
+
 	"github.com/golang/glog"
 )
 
@@ -24,12 +27,8 @@ type SQL struct {
 	SQL     []string
 }
 
-func (p *Plan) generateSQL(statement sqlparser.Statement) error {
-	switch stmt := statement.(type) {
-	case *sqlparser.Insert:
-		// return sei.buildInsertPlan(stmt)
-		return nil
-
+func (p *Plan) generateSQL(statement ...sqlparser.Statement) error {
+	switch stmt := statement[0].(type) {
 	case *sqlparser.Select:
 		p.generateSQLALL(stmt)
 
@@ -56,6 +55,17 @@ func (p *Plan) generateSQLALL(stmt sqlparser.Statement) {
 			SQL:     []string{sql},
 		})
 	}
+}
+
+func (p *Plan) generateOneSQL(stmt sqlparser.Statement, index int) {
+	buf := sqlparser.NewTrackedBuffer(nil)
+	stmt.Format(buf)
+	sql := buf.String()
+	glog.Infof("generate select SQL:%s", sql)
+	p.SQLs = append(p.SQLs, &SQL{
+		Backend: p.Table.Backends[index],
+		SQL:     []string{sql},
+	})
 }
 
 // limit
@@ -107,7 +117,7 @@ func (p *Plan) rewriteLimit(stmt *sqlparser.Select) (err error) {
 func (sei *session) buildPlan(statement sqlparser.Statement) (*Plan, error) {
 	switch stmt := statement.(type) {
 	case *sqlparser.Insert:
-		// return sei.buildInsertPlan(stmt)
+		return sei.buildInsertPlan(stmt)
 	case *sqlparser.Select:
 		return sei.buildSelectPlan(stmt)
 	case *sqlparser.Update:
@@ -116,6 +126,176 @@ func (sei *session) buildPlan(statement sqlparser.Statement) (*Plan, error) {
 		return sei.buildDelPlan(stmt)
 	}
 	return nil, errors.New("not support plan")
+}
+
+func (sei *session) buildInsertPlan(stmt *sqlparser.Insert) (*Plan, error) {
+	plan := &Plan{}
+
+	isNoCol := false
+	isNeedInitCol := true
+	colLen := len(stmt.Columns)
+
+	// get table
+	table, err := sei.getMeta().GetTable(sei.user, sei.db, string(stmt.Table.Name))
+	if err != nil {
+		return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error())
+	}
+	plan.Table = table
+	if colLen == 0 {
+		isNoCol = true
+	}
+	// get sqls
+	values, ok := stmt.Rows.(sqlparser.Values)
+	if !ok {
+		return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unsupport")
+	}
+
+	for row, value := range values {
+		tuple, ok := value.(sqlparser.ValTuple)
+		if !ok {
+			return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unsupport")
+		}
+		if (isNoCol && len(tuple) != table.Table.ColsLen) ||
+			!isNoCol && len(tuple) != colLen {
+			return nil, mysql.NewDefaultError(mysql.ER_WRONG_VALUE_COUNT_ON_ROW, row+1)
+		}
+		// rewrite auto key
+		if isNoCol {
+			// rewrite by index
+			for _, autokey := range table.Table.AutoKeys {
+				id, err := table.GetKey(autokey.Name, config.Config.Proxy.AutoKeyInterval, sei.server.info)
+				if err != nil {
+					glog.Warningf("Get autokey(%v) get error(%v)", autokey.Name, err)
+					return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error())
+				}
+				if autokey.Type == meta.TypeKeyInt {
+					tuple[autokey.Index] = sqlparser.NumVal(id)
+				} else {
+					tuple[autokey.Index] = sqlparser.StrVal(id)
+				}
+			}
+		} else {
+			for _, autokey := range table.Table.AutoKeys {
+				isExist := false
+				id, err := table.GetKey(autokey.Name, config.Config.Proxy.AutoKeyInterval, sei.server.info)
+				if err != nil {
+					glog.Warningf("Get autokey(%v) get error(%v)", autokey.Name, err)
+					return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, err.Error())
+				}
+				for n, column := range stmt.Columns {
+					col, ok := column.(*sqlparser.NonStarExpr)
+					if !ok {
+						return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unsupport")
+					}
+					colName, ok := col.Expr.(*sqlparser.ColName)
+					if !ok {
+						return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unsupport")
+					}
+					if autokey.Name == string(colName.Name) && n < len(tuple) {
+						isExist = true
+						if autokey.Type == meta.TypeKeyInt {
+							tuple[n] = sqlparser.NumVal(id)
+						} else {
+							tuple[n] = sqlparser.StrVal(id)
+						}
+					}
+				}
+				if !isExist {
+					if isNeedInitCol {
+						stmt.Columns = append(stmt.Columns, &sqlparser.NonStarExpr{
+							Expr: &sqlparser.ColName{
+								Name: sqlparser.SQLName(autokey.Name),
+							},
+						})
+					}
+					if autokey.Type == meta.TypeKeyInt {
+						tuple = append(tuple, sqlparser.NumVal(id))
+					} else {
+						tuple = append(tuple, sqlparser.StrVal(id))
+					}
+				}
+			}
+		}
+		values[row] = tuple
+		isNeedInitCol = false
+	}
+	stmt.Rows = values
+
+	sqls := make(map[int]sqlparser.InsertRows)
+	// split stmt
+	for row, value := range values {
+		tuple := value.(sqlparser.ValTuple)
+		var value string
+		if isNoCol {
+			// get hash key
+			switch v := tuple[table.Table.PartitionKey.Index].(type) {
+			case sqlparser.NumVal:
+				value = string(v)
+			case sqlparser.StrVal:
+				value = string(v)
+			default:
+				return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unknow partition key type")
+			}
+		} else {
+			for col, column := range stmt.Columns {
+				name := string(column.(*sqlparser.NonStarExpr).Expr.(*sqlparser.ColName).Name)
+				if name == table.Table.PartitionKey.Name {
+					switch v := tuple[col].(type) {
+					case sqlparser.NumVal:
+						value = string(v)
+					case sqlparser.StrVal:
+						value = string(v)
+					default:
+						return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unknow partition key type")
+					}
+				}
+			}
+		}
+		if value == "" {
+			glog.Warning("Get partition key error value is null")
+			return nil, mysql.NewError(mysql.ER_UNKNOWN_ERROR, "unknow partition key type")
+		}
+		index := FindForKey(value, len(table.Backends))
+		s, ok := sqls[index]
+		if !ok {
+			sqls[index] = sqlparser.Values{values[row]}
+		} else {
+			sqls[index] = append(s.(sqlparser.Values), values[row])
+		}
+	}
+
+	var lastIDs []uint64
+	if len(table.Table.AutoIns) > 0 {
+		index := 0
+		if isNoCol {
+			// range column
+			index = table.Table.AutoIns[0].Index
+		} else {
+			// get index
+			index = sort.Search(len(stmt.Columns), func(i int) bool {
+				return string(stmt.Columns[i].(*sqlparser.NonStarExpr).Expr.(*sqlparser.ColName).Name) ==
+					table.Table.AutoIns[0].Name
+			})
+		}
+		lastIDs = make([]uint64, len(sqls))
+		n := 0
+		for _, sql := range sqls {
+			switch v := sql.(sqlparser.Values)[0].(sqlparser.ValTuple)[index].(type) {
+			case sqlparser.NumVal:
+				glog.Info(n, len(lastIDs))
+				lastIDs[n], _ = strconv.ParseUint(string(v), 10, 64)
+			case sqlparser.StrVal:
+				lastIDs[n], _ = strconv.ParseUint(string(v), 10, 64)
+			}
+			n++
+		}
+	}
+
+	for k, v := range sqls {
+		stmt.Rows = v
+		plan.generateOneSQL(stmt, k)
+	}
+	return plan, nil
 }
 
 func (sei *session) buildSelectPlan(stmt *sqlparser.Select) (*Plan, error) {
@@ -151,10 +331,7 @@ func (sei *session) buildSelectPlan(stmt *sqlparser.Select) (*Plan, error) {
 
 	// generate sql
 	err = plan.generateSQL(stmt)
-	if err != nil {
-		return nil, err
-	}
-	return plan, nil
+	return plan, err
 }
 
 func (sei *session) buildDelPlan(stmt *sqlparser.Delete) (*Plan, error) {
@@ -170,10 +347,7 @@ func (sei *session) buildDelPlan(stmt *sqlparser.Delete) (*Plan, error) {
 
 	// generate sql
 	err = plan.generateSQL(stmt)
-	if err != nil {
-		return nil, err
-	}
-	return plan, nil
+	return plan, err
 }
 
 func (sei *session) buildUpdatePlan(stmt *sqlparser.Update) (*Plan, error) {
@@ -189,10 +363,7 @@ func (sei *session) buildUpdatePlan(stmt *sqlparser.Update) (*Plan, error) {
 
 	// generate sql
 	err = plan.generateSQL(stmt)
-	if err != nil {
-		return nil, err
-	}
-	return plan, nil
+	return plan, err
 }
 
 func (p *Plan) getOffetCount() (int64, int64) {
