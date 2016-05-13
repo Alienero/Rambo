@@ -1,0 +1,13 @@
+IsDev = true
+LogFileDir = ""
+
+[Etcd]
+  EtcdAddr = ["http://192.168.99.100:4001"]
+  UpdateTTL = 10
+
+[Server]
+  ListenAddr = ":3306"
+  RPCAddr = "localhost:5645"
+
+[Proxy]
+  AutoKeyInterval = 5

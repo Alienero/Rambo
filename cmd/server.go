@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"path"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // serverCmd represents the server command
@@ -23,18 +21,13 @@ var serverCmd = &cobra.Command{
 	Short: "start rambo server",
 	Run: func(cmd *cobra.Command, args []string) {
 		flag.Parse()
-		if debug {
+		if config.Config.IsDev {
 			flag.Set("logtostderr", "true")
 			flag.Set("v", "10")
 		}
 		defer glog.Flush()
-		// default etcd addrs
-		config.Config.Etcd.EtcdAddr = []string{"http://192.168.99.100:4001"}
-		// default mysql port
-		config.Config.Server.ListenAddr = "localhost:3306"
-		config.Config.Etcd.UpdateTTL = 10
-		config.Config.Server.RPCAddr = "localhost:5645"
-		config.Config.Proxy.AutoKeyInterval = 5
+		flag.Set("log_dir", config.Config.LogFileDir)
+
 		s := server.NewSever()
 		// listenning
 		go s.Run()
@@ -65,23 +58,14 @@ func init() {
 	// Cobra supports Persistent Flags, which, if defined here,
 	// will be global for your application.
 
-	serverCmd.Flags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.Rambo.yaml)")
+	serverCmd.Flags().StringVar(&cfgFile, "config", "config.toml", "config file (default is rambo.toml)")
 
 	initConfig()
 }
 
-// initConfig reads in config file and ENV variables if set.
+// initConfig reads in config file.
 func initConfig() {
-	if cfgFile != "" { // enable ability to specify config file via flag
-		viper.SetConfigFile(cfgFile)
-	}
-
-	viper.SetConfigName(".Rambo") // name of config file (without extension)
-	viper.AddConfigPath("$HOME")  // adding home directory as first search path
-	viper.AutomaticEnv()          // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	if err := config.InitConfig(cfgFile); err != nil {
+		panic(err)
 	}
 }

@@ -121,9 +121,8 @@ func (sei *session) dispatch(data []byte) error {
 	switch cmd {
 	case mysql.COM_QUIT:
 		return sei.Close()
+
 	case mysql.COM_QUERY:
-		// TODO: test stmt,should rm.
-		fmt.Println(cmd, string(data))
 		return sei.handleQuery(data)
 
 	case mysql.COM_PING:
