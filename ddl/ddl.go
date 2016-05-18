@@ -126,7 +126,7 @@ func (d *Manage) Run() {
 
 func (d *Manage) getMaster(key string) (string, error) {
 	// should create a master node
-	master, err := d.election.GetMaster(path.Join(meta.Masters, key))
+	master, err := d.election.GetMaster(path.Join(meta.DDLInfo, meta.Masters, key))
 	if err != nil {
 		return "", err
 	}

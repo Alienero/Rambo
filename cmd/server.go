@@ -20,6 +20,10 @@ var serverCmd = &cobra.Command{
 	Use:   "server",
 	Short: "start rambo server",
 	Run: func(cmd *cobra.Command, args []string) {
+		// initConfig reads in config file.
+		if err := config.InitConfig(cfgFile); err != nil {
+			panic(err)
+		}
 		flag.Parse()
 		if config.Config.IsDev {
 			flag.Set("logtostderr", "true")
@@ -59,13 +63,4 @@ func init() {
 	// will be global for your application.
 
 	serverCmd.Flags().StringVar(&cfgFile, "config", "config.toml", "config file (default is rambo.toml)")
-
-	initConfig()
-}
-
-// initConfig reads in config file.
-func initConfig() {
-	if err := config.InitConfig(cfgFile); err != nil {
-		panic(err)
-	}
 }
