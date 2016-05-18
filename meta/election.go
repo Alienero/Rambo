@@ -37,21 +37,14 @@ func NewElection(machines []string, dir string, ttl uint64, cb func(key string),
 // GetMaster get master node
 // if master node is not exist, it will elect new one
 func (e *Election) GetMaster(key string) (string, error) {
-renew:
 	resp, err := e.client.Get(key, false, false)
 	if err != nil {
-		if etcdErr, ok := err.(*etcd.EtcdError); ok {
-			if etcdErr.ErrorCode == NotFound {
-				if _, err = e.client.Create(key, e.localValue, e.ttl); err != nil {
-					goto renew
-				}
-				// this node is master
-				e.cb(key)
-				go e.update(key)
-				return e.localValue, nil
+		if er, ok := err.(*etcd.EtcdError); ok {
+			if er.ErrorCode == NotFound {
+				return e.electMaster(key)
 			}
 		}
-		return "", err
+		return "", nil
 	}
 	return resp.Node.Value, nil
 }
@@ -74,25 +67,32 @@ func (e *Election) watch() {
 			return
 		}
 		if resp.Action == Expire {
-			go e.electMaster(resp.Node.Key, resp.Node.Value)
+			go e.electMaster(resp.Node.Key)
 		}
 	}
 }
 
-func (e *Election) electMaster(key, lastValue string) {
+func (e *Election) electMaster(key string) (string, error) {
 renew:
-	_, err := e.client.CompareAndSwap(key, e.localValue, e.ttl, lastValue, 0)
+	resp, err := e.client.Create(key, e.localValue, e.ttl)
 	if err == nil {
+		go e.update(key)
 		e.cb(key)
-		e.update(key)
-	} else {
-		// check master
-		_, err := e.client.Get(key, false, false)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-			goto renew
-		}
+		return resp.Node.Value, nil
 	}
+	// check master
+	resp, err = e.client.Get(key, false, false)
+	if err != nil {
+		if er, ok := err.(*etcd.EtcdError); ok {
+			if er.ErrorCode == NotFound {
+				goto renew
+			}
+		}
+		return "", err
+
+	}
+	// master is not found
+	return resp.Node.Value, nil
 }
 
 // Stop will stop Election
