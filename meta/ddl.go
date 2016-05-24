@@ -91,6 +91,13 @@ func (d *Info) SaveCreateDatabase(user, db, tid string, backends []*Backend) err
 func (d *Info) SaveCreateTable(user, db, tid string, table *Table) error {
 	data, _ := json.Marshal(table)
 	_, err := d.Create(path.Join(UserInfo, user, DB, db, Tables, table.Name), string(data), 0)
+	if err != nil {
+		return err
+	}
+	_, err = d.Delete(path.Join(DDLInfo, user, TaskQueue, tid), true)
+	if err != nil {
+		glog.Info("delete task error", path.Join(DDLInfo, user, TaskQueue, tid))
+	}
 	return err
 }
 
